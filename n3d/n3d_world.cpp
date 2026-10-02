@@ -24,6 +24,11 @@ const WorldCell &WorldState::at(size_t x, size_t y) const
     return cells[y * Width + x];
 }
 
+WorldCell &WorldState::at(size_t x, size_t y)
+{
+    return cells[y * Width + x];
+}
+
 const char *directionName(PlayerDirection direction)
 {
     switch(direction)
