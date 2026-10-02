@@ -97,10 +97,12 @@ bool cellBlocksPlayer(const WorldState &world,
             return true;
     }
 
-    // Object-property 0x04 is the original pickup/touch side-effect channel.
-    // The preview collision core intentionally leaves the side effect to the
-    // later inventory dispatcher, but movement blocking still follows bit 0x02.
+    // Original ordering: collectible/touch side effects are dispatched
+    // before the final object-occupancy blocking decision.
     const uint8_t objectFlags = objectPropertiesForClass(cell.objectClass);
+    if((objectFlags & 0x04) != 0 && context.objectTouch)
+        context.objectTouch(tileX, tileY, cell.objectId, cell.objectClass, context.userData);
+
     if((objectFlags & 0x02) != 0)
         return true;
 
