@@ -15,13 +15,17 @@ enum CollisionAxis
 };
 
 typedef bool (*DoorPassageQuery)(int tileX, int tileY, uint8_t wallId, void *userData);
+typedef void (*ObjectTouchQuery)(int tileX, int tileY,
+                                 uint8_t objectId, uint8_t objectClass,
+                                 void *userData);
 
 struct CollisionContext
 {
     DoorPassageQuery doorPassage;
+    ObjectTouchQuery objectTouch;
     void *userData;
 
-    CollisionContext() : doorPassage(0), userData(0) {}
+    CollisionContext() : doorPassage(0), objectTouch(0), userData(0) {}
 };
 
 struct MoveResult
