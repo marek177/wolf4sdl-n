@@ -364,7 +364,6 @@ void HitVertWall (void)
         const int32_t textureCoordinate = yintercept + texdelta;
         const bool reverse = xtilestep == -1;
         unsigned textureU = 0;
-        unsigned textureWidth = 0;
 
         if(reverse)
             xintercept += TILEGLOBAL;
@@ -383,7 +382,7 @@ void HitVertWall (void)
                                    textureCoordinate,
                                    reverse,
                                    &textureU,
-                                   &textureWidth));
+                                   0));
         lasttexture = static_cast<int>(textureU * 64u);
         return;
     }
