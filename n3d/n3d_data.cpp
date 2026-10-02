@@ -78,6 +78,11 @@ const MapCell &LevelMap::at(size_t x, size_t y) const
 
 MapArchive::MapArchive() : declaredLevelCount_(0)
 {
+    for(size_t i = 0; i < 256; ++i)
+    {
+        wallClasses_[i] = 0;
+        objectClasses_[i] = 0;
+    }
 }
 
 bool MapArchive::load(const std::string &path, std::string &error)
@@ -85,6 +90,11 @@ bool MapArchive::load(const std::string &path, std::string &error)
     ByteVector bytes;
     levels_.clear();
     declaredLevelCount_ = 0;
+    for(size_t i = 0; i < 256; ++i)
+    {
+        wallClasses_[i] = 0;
+        objectClasses_[i] = 0;
+    }
 
     if(!readFile(path, bytes, error))
         return false;
@@ -102,6 +112,12 @@ bool MapArchive::load(const std::string &path, std::string &error)
     }
 
     declaredLevelCount_ = readU16LE(bytes, 0);
+    for(size_t i = 0; i < 256; ++i)
+    {
+        wallClasses_[i] = bytes[0x002 + i];
+        objectClasses_[i] = bytes[0x102 + i];
+    }
+
     const size_t actualLevelCount = payloadSize / LevelBytes;
     if(declaredLevelCount_ != actualLevelCount)
     {
