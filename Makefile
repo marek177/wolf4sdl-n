@@ -58,6 +58,7 @@ SRCS += id_sd.cpp
 SRCS += id_us_1.cpp
 SRCS += id_vh.cpp
 SRCS += id_vl.cpp
+SRCS += n3d/n3d_collision.cpp
 SRCS += n3d/n3d_data.cpp
 SRCS += n3d/n3d_main.cpp
 SRCS += n3d/n3d_preview.cpp
