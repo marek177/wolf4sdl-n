@@ -69,6 +69,53 @@ int StartAngle(n3d::PlayerDirection direction)
     return 0;
 }
 
+void FrontCell(const objtype *ob, int &x, int &y)
+{
+    x = ob->tilex;
+    y = ob->tiley;
+
+    int angle = ob->angle;
+    if(angle < 0)
+        angle += ANGLES;
+    if(angle >= ANGLES)
+        angle %= ANGLES;
+
+    if(angle < ANGLES / 8 || angle >= 7 * ANGLES / 8)
+        ++x;
+    else if(angle < 3 * ANGLES / 8)
+        --y;
+    else if(angle < 5 * ANGLES / 8)
+        --x;
+    else
+        ++y;
+}
+
+int PlayerSector(const objtype *ob)
+{
+    int angle = ob->angle;
+    if(angle < 0)
+        angle += ANGLES;
+    if(angle >= ANGLES)
+        angle %= ANGLES;
+
+    return ((angle + ANGLES / 16) / (ANGLES / 8)) & 7;
+}
+
+const char *DoorUseName(n3d::DoorUseResult result)
+{
+    switch(result)
+    {
+        case n3d::DoorUseNone: return "nothing";
+        case n3d::DoorUseToggled: return "door toggled";
+        case n3d::DoorUseNeedsKey: return "locked: key required";
+        case n3d::DoorUseNeedsIdCard: return "locked: ID card required";
+        case n3d::DoorUseRemoteOnly: return "remote-controlled door";
+        case n3d::DoorUseDirectionalGate: return "direction-gated door";
+        case n3d::DoorUseLatched: return "latched passable door";
+    }
+    return "unknown";
+}
+
 }
 
 extern void BuildTables(void);
@@ -138,8 +185,11 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
     player->angle = static_cast<short>(StartAngle(world->playerStart.direction));
 
     printf("Nitemare3D Wolf4SDL preview: E%dM%d\n", episode, level);
-    printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, Esc quit\n");
-    printf("Collision: recovered 27/28-unit player probes; dynamic doors currently treated as blocking\n");
+    printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, E/Space use, Esc quit\n");
+    printf("Collision: recovered 27/28-unit probes; door states 0/4 pass, states 1/2/3 block\n");
+
+    Uint32 nextDoorMotion = SDL_GetTicks() + 39;
+    Uint32 nextDoorSlow = SDL_GetTicks() + 122;
 
     bool running = true;
     while(running)
@@ -151,6 +201,17 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                 running = false;
             else if(event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
                 running = false;
+            else if(event.type == SDL_KEYDOWN &&
+                    (event.key.keysym.sym == SDLK_e ||
+                     event.key.keysym.sym == SDLK_SPACE))
+            {
+                int useX, useY;
+                FrontCell(player, useX, useY);
+                const n3d::DoorUseResult useResult =
+                    n3d::runtimeUseDoor(useX, useY, PlayerSector(player));
+                if(useResult != n3d::DoorUseNone)
+                    printf("USE %d,%d: %s\n", useX, useY, DoorUseName(useResult));
+            }
         }
 
         const Uint8 *keys = SDL_GetKeyState(0);
@@ -210,6 +271,9 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         if(desiredX != 0 || desiredY != 0)
         {
             n3d::CollisionContext collision;
+            collision.doorPassage = &n3d::runtimeDoorPassageQuery;
+            collision.userData = 0;
+
             const int32_t currentX = player->x >> 10;
             const int32_t currentY = player->y >> 10;
             const n3d::MoveResult moved =
@@ -225,6 +289,25 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
             player->tilex = static_cast<short>(n3d::worldToTile(moved.x));
             player->tiley = static_cast<short>(n3d::worldToTile(moved.y));
         }
+
+        const Uint32 now = SDL_GetTicks();
+
+        // DOS-reference preview cadence only: missed buckets are deliberately
+        // not replayed. Runtime scheduling will later replace these clocks.
+        if(static_cast<Sint32>(now - nextDoorMotion) >= 0)
+        {
+            n3d::runtimeTickDoorMotion();
+            nextDoorMotion = now + 39;
+        }
+
+        if(static_cast<Sint32>(now - nextDoorSlow) >= 0)
+        {
+            n3d::runtimeTickDoorAutoClose(player->tilex, player->tiley);
+            nextDoorSlow = now + 122;
+        }
+
+        // Door terminal state changes alter both visibility and collision.
+        n3d::copyWolfTileMap(reinterpret_cast<uint8_t *>(&tilemap[0][0]), sizeof(tilemap));
 
         N3D_WallPreviewRefresh();
         SDL_Delay(16);
