@@ -95,6 +95,7 @@
     <ClCompile Include="id_us_1.cpp" />
     <ClCompile Include="id_vh.cpp" />
     <ClCompile Include="id_vl.cpp" />
+    <ClCompile Include="n3d\\n3d_collision.cpp" />
     <ClCompile Include="n3d\\n3d_data.cpp" />
     <ClCompile Include="n3d\\n3d_main.cpp" />
     <ClCompile Include="n3d\\n3d_preview.cpp" />
@@ -156,6 +157,7 @@
     <ClInclude Include="id_us.h" />
     <ClInclude Include="id_vh.h" />
     <ClInclude Include="id_vl.h" />
+    <ClInclude Include="n3d\\n3d_collision.h" />
     <ClInclude Include="n3d\\n3d_data.h" />
     <ClInclude Include="n3d\\n3d_main.h" />
     <ClInclude Include="n3d\\n3d_preview.h" />
