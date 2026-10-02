@@ -226,12 +226,17 @@ bool ImgArchive::load(const std::string &path, std::string &error)
     return true;
 }
 
-bool ImgArchive::hasFrameAtOffset(uint32_t offset) const
+const ImgFrame *ImgArchive::frameAtExactOffset(uint32_t offset) const
 {
     for(size_t i = 0; i < frames_.size(); ++i)
         if(frames_[i].fileOffset == offset)
-            return true;
-    return false;
+            return &frames_[i];
+    return 0;
+}
+
+bool ImgArchive::hasFrameAtOffset(uint32_t offset) const
+{
+    return frameAtExactOffset(offset) != 0;
 }
 
 size_t ImgArchive::nonZeroWallSlots() const
