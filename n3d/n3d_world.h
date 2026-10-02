@@ -48,6 +48,7 @@ struct WorldState
 
     WorldState();
     const WorldCell &at(size_t x, size_t y) const;
+    WorldCell &at(size_t x, size_t y);
 };
 
 bool buildWorld(const EpisodeData &episode, size_t levelIndex, WorldState &out, std::string &error);
