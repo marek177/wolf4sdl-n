@@ -1125,6 +1125,7 @@ extern  fixed   viewx,viewy;                    // the focal point
 extern  fixed   viewsin,viewcos;
 
 void    ThreeDRefresh (void);
+void    N3D_WallPreviewRefresh (void);
 void    CalcTics (void);
 
 typedef struct
