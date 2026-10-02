@@ -116,7 +116,6 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
     }
     SDL_SetColors(screen, palette, 0, 256);
     SDL_SetColors(screenBuffer, palette, 0, 256);
-    memcpy(curpal, palette, sizeof(palette));
 
     BuildTables();
     SetViewSize(304, 152);
