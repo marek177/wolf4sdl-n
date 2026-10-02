@@ -1,6 +1,7 @@
 #include "n3d_runtime.h"
 
 #include "n3d_data.h"
+#include "n3d_door.h"
 #include "n3d_render_bridge.h"
 #include "n3d_world.h"
 
@@ -11,6 +12,7 @@ namespace
 EpisodeData g_episode;
 WorldState g_world;
 RenderMap g_renderMap;
+DoorRuntime g_doors;
 bool g_active = false;
 uint8_t g_fallbackColumn[64] = {0};
 }
@@ -30,9 +32,14 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
     if(!buildRenderMap(episodeData, world, renderMap, error))
         return false;
 
+    DoorRuntime doors;
+    if(!doors.build(world, error))
+        return false;
+
     g_episode = episodeData;
     g_world = world;
     g_renderMap = renderMap;
+    g_doors = doors;
     g_active = true;
     return true;
 }
@@ -43,6 +50,7 @@ void unloadRuntime()
     g_episode = EpisodeData();
     g_world = WorldState();
     g_renderMap = RenderMap();
+    g_doors = DoorRuntime();
 }
 
 bool runtimeActive()
@@ -63,6 +71,42 @@ const WorldState *runtimeWorld()
 const RenderMap *runtimeRenderMap()
 {
     return g_active ? &g_renderMap : 0;
+}
+
+DoorRuntime *runtimeDoors()
+{
+    return g_active ? &g_doors : 0;
+}
+
+const DoorRuntime *runtimeDoorsConst()
+{
+    return g_active ? &g_doors : 0;
+}
+
+bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData)
+{
+    (void)wallId;
+    (void)userData;
+    return g_active && g_doors.allowsPassage(tileX, tileY);
+}
+
+DoorUseResult runtimeUseDoor(int tileX, int tileY, int playerSector)
+{
+    if(!g_active)
+        return DoorUseNone;
+    return g_doors.use(tileX, tileY, playerSector);
+}
+
+void runtimeTickDoorMotion()
+{
+    if(g_active)
+        g_doors.tickMotion();
+}
+
+void runtimeTickDoorAutoClose(int playerTileX, int playerTileY)
+{
+    if(g_active)
+        g_doors.tickAutoClose(playerTileX, playerTileY, 0, 0);
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
@@ -90,7 +134,13 @@ bool copyWolfTileMap(uint8_t *dest, size_t destBytes)
         for(size_t y = 0; y < RenderMap::Height; ++y)
         {
             const RenderCell &cell = g_renderMap.at(x, y);
-            dest[x * RenderMap::Height + y] = cell.opaque ? cell.wallId : 0;
+            uint8_t value = cell.opaque ? cell.wallId : 0;
+
+            if(g_doors.isDoorCell(static_cast<int>(x), static_cast<int>(y)) &&
+               g_doors.allowsPassage(static_cast<int>(x), static_cast<int>(y)))
+                value = 0;
+
+            dest[x * RenderMap::Height + y] = value;
         }
     }
     return true;
