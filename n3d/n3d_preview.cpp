@@ -1,6 +1,7 @@
 #include "n3d_preview.h"
 
 #include "n3d_runtime.h"
+#include "n3d_collision.h"
 #include "n3d_world.h"
 #include "../wl_def.h"
 
@@ -160,6 +161,65 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
             player->angle -= 2;
             if(player->angle < 0)
                 player->angle += ANGLES;
+        }
+
+        const int moveSpeed =
+            (keys[SDLK_LSHIFT] || keys[SDLK_RSHIFT]) ? 4 : 2;
+
+        int desiredX = 0;
+        int desiredY = 0;
+
+        if(keys[SDLK_w] || keys[SDLK_UP])
+        {
+            desiredX += static_cast<int>(
+                (static_cast<int32_t>(costable[player->angle]) * moveSpeed) >> 16);
+            desiredY -= static_cast<int>(
+                (static_cast<int32_t>(sintable[player->angle]) * moveSpeed) >> 16);
+        }
+        if(keys[SDLK_s] || keys[SDLK_DOWN])
+        {
+            desiredX -= static_cast<int>(
+                (static_cast<int32_t>(costable[player->angle]) * moveSpeed) >> 16);
+            desiredY += static_cast<int>(
+                (static_cast<int32_t>(sintable[player->angle]) * moveSpeed) >> 16);
+        }
+
+        int strafeAngle = player->angle + ANGLES / 4;
+        if(strafeAngle >= ANGLES)
+            strafeAngle -= ANGLES;
+
+        if(keys[SDLK_a])
+        {
+            desiredX -= static_cast<int>(
+                (static_cast<int32_t>(costable[strafeAngle]) * moveSpeed) >> 16);
+            desiredY += static_cast<int>(
+                (static_cast<int32_t>(sintable[strafeAngle]) * moveSpeed) >> 16);
+        }
+        if(keys[SDLK_d])
+        {
+            desiredX += static_cast<int>(
+                (static_cast<int32_t>(costable[strafeAngle]) * moveSpeed) >> 16);
+            desiredY -= static_cast<int>(
+                (static_cast<int32_t>(sintable[strafeAngle]) * moveSpeed) >> 16);
+        }
+
+        if(desiredX != 0 || desiredY != 0)
+        {
+            n3d::CollisionContext collision;
+            const int32_t currentX = player->x >> 10;
+            const int32_t currentY = player->y >> 10;
+            const n3d::MoveResult moved =
+                n3d::movePlayer(*world,
+                                currentX,
+                                currentY,
+                                desiredX,
+                                desiredY,
+                                collision);
+
+            player->x = moved.x << 10;
+            player->y = moved.y << 10;
+            player->tilex = static_cast<short>(n3d::worldToTile(moved.x));
+            player->tiley = static_cast<short>(n3d::worldToTile(moved.y));
         }
 
         N3D_WallPreviewRefresh();
