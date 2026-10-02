@@ -1587,6 +1587,47 @@ void WallRefresh (void)
     ScalePost ();                   // no more optimization on last post
 }
 
+
+/*
+========================
+=
+= N3D_WallPreviewRefresh
+=
+= Minimal wall-only refresh path for the native Nitemare3D bootstrap.
+= It deliberately skips Wolf sprites, weapon graphics, HUD and cached resources.
+=
+========================
+*/
+void N3D_WallPreviewRefresh(void)
+{
+    memset(spotvis, 0, maparea);
+    if(player->tilex >= 0 && player->tilex < MAPSIZE &&
+       player->tiley >= 0 && player->tiley < MAPSIZE)
+        spotvis[player->tilex][player->tiley] = 1;
+
+    byte *surfaceBase = VL_LockSurface(screenBuffer);
+    if(surfaceBase == NULL)
+        return;
+
+    memset(surfaceBase, 0, bufferPitch * screenHeight);
+
+    vbuf = surfaceBase + screenofs;
+    vbufPitch = bufferPitch;
+
+    // Recovered Nitemare3D default indexed fill values.
+    for(int y = 0; y < viewheight; ++y)
+        memset(vbuf + y * vbufPitch, y < viewheight / 2 ? 0x11 : 0x0C, viewwidth);
+
+    CalcViewVariables();
+    WallRefresh();
+
+    VL_UnlockSurface(screenBuffer);
+    vbuf = NULL;
+
+    SDL_BlitSurface(screenBuffer, NULL, screen, NULL);
+    SDL_Flip(screen);
+}
+
 void CalcViewVariables()
 {
     viewangle = player->angle;
