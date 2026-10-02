@@ -270,8 +270,15 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
 
         if(desiredX != 0 || desiredY != 0)
         {
+            const n3d::ObjectRuntime *objectsBefore = n3d::runtimeObjectsConst();
+            const uint8_t oldKeyMask =
+                objectsBefore ? objectsBefore->inventory().keyMask : 0;
+            const uint8_t oldIdCardMask =
+                objectsBefore ? objectsBefore->inventory().idCardMask : 0;
+
             n3d::CollisionContext collision;
             collision.doorPassage = &n3d::runtimeDoorPassageQuery;
+            collision.objectTouch = &n3d::runtimeObjectTouchQuery;
             collision.userData = 0;
 
             const int32_t currentX = player->x >> 10;
@@ -288,6 +295,18 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
             player->y = moved.y << 10;
             player->tilex = static_cast<short>(n3d::worldToTile(moved.x));
             player->tiley = static_cast<short>(n3d::worldToTile(moved.y));
+
+            const n3d::ObjectRuntime *objectsAfter = n3d::runtimeObjectsConst();
+            if(objectsAfter)
+            {
+                const n3d::InventoryState &inventory = objectsAfter->inventory();
+                if(inventory.keyMask != oldKeyMask)
+                    printf("KEY pickup: mask 0x%02X -> 0x%02X\n",
+                           (unsigned)oldKeyMask, (unsigned)inventory.keyMask);
+                if(inventory.idCardMask != oldIdCardMask)
+                    printf("ID CARD pickup: mask 0x%02X -> 0x%02X\n",
+                           (unsigned)oldIdCardMask, (unsigned)inventory.idCardMask);
+            }
         }
 
         const Uint32 now = SDL_GetTicks();
