@@ -1,11 +1,13 @@
 #include "n3d_door.h"
+#include "n3d_data.h"
 
 namespace n3d
 {
 
 DoorController::DoorController()
     : x(0), y(0), wallId(0), wallClass(0),
-      state(DoorClosed), timer(0), motion(0), latch(false)
+      state(DoorClosed), timer(0), motion(0), latch(false),
+      credentialSelector(0xff)
 {
 }
 
@@ -26,10 +28,12 @@ bool doorStateAllowsPassage(DoorState state)
     return state == DoorOpen || state == DoorLatchedPassable;
 }
 
-bool DoorRuntime::build(const WorldState &world, std::string &error)
+bool DoorRuntime::build(const WorldState &world, const MapArchive &map, std::string &error)
 {
     world_ = &world;
     controllers_.clear();
+    keyMask_ = 0;
+    idCardMask_ = 0;
 
     for(int y = 0; y < WorldState::Height; ++y)
     {
@@ -58,6 +62,29 @@ bool DoorRuntime::build(const WorldState &world, std::string &error)
             door.timer = 0;
             door.motion = 0;
             door.latch = false;
+
+            if((door.wallClass >= 0x33 && door.wallClass <= 0x3A))
+            {
+                int firstId = -1;
+                for(int id = 0; id < 256; ++id)
+                {
+                    if(map.wallClass(static_cast<uint8_t>(id)) == door.wallClass)
+                    {
+                        firstId = id;
+                        break;
+                    }
+                }
+
+                if(firstId >= 0 && door.wallId >= firstId)
+                {
+                    const unsigned delta =
+                        static_cast<unsigned>(door.wallId - firstId);
+                    const unsigned selector = delta / 2u;
+                    if(selector < 8u)
+                        door.credentialSelector = static_cast<uint8_t>(selector);
+                }
+            }
+
             controllers_.push_back(door);
         }
     }
@@ -103,10 +130,18 @@ DoorUseResult DoorRuntime::use(int x, int y, int playerSector)
 
     // Credential gates recovered from the USE dispatcher.
     if(door->wallClass >= 0x33 && door->wallClass <= 0x38)
-        return DoorUseNeedsKey;
+    {
+        if(door->credentialSelector >= 8 ||
+           (keyMask_ & (1u << door->credentialSelector)) == 0)
+            return DoorUseNeedsKey;
+    }
 
     if(door->wallClass == 0x39 || door->wallClass == 0x3A)
-        return DoorUseNeedsIdCard;
+    {
+        if(door->credentialSelector >= 8 ||
+           (idCardMask_ & (1u << door->credentialSelector)) == 0)
+            return DoorUseNeedsIdCard;
+    }
 
     if(door->wallClass == 0x3B || door->wallClass == 0x3C)
         return DoorUseRemoteOnly;
@@ -137,6 +172,18 @@ DoorUseResult DoorRuntime::use(int x, int y, int playerSector)
     }
 
     return DoorUseNone;
+}
+
+void DoorRuntime::grantKey(unsigned selector)
+{
+    if(selector < 8u)
+        keyMask_ = static_cast<uint8_t>(keyMask_ | (1u << selector));
+}
+
+void DoorRuntime::grantIdCard(unsigned selector)
+{
+    if(selector < 8u)
+        idCardMask_ = static_cast<uint8_t>(idCardMask_ | (1u << selector));
 }
 
 void DoorRuntime::propagateState(DoorController &source)
