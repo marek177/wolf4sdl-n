@@ -10,6 +10,7 @@
 #pragma hdrstop
 #include "wl_atmos.h"
 #include "n3d/n3d_main.h"
+#include "n3d/n3d_preview.h"
 #include <SDL_syswm.h>
 
 
@@ -104,6 +105,7 @@ int     param_mission = 0;
 boolean param_goodtimes = false;
 boolean param_ignorenumchunks = false;
 boolean param_nitemare3d = false;
+boolean param_n3d_preview = false;
 char    param_n3d_datadir[256] = ".";
 int     param_n3d_episode = 1;
 int     param_n3d_level = 1;
@@ -1708,6 +1710,11 @@ void CheckParameters(int argc, char *argv[])
             param_nowait = true;
         else IFARG("--nitemare3d")
             param_nitemare3d = true;
+        else IFARG("--n3d-preview")
+        {
+            param_nitemare3d = true;
+            param_n3d_preview = true;
+        }
         else IFARG("--n3d-data")
         {
             if(++i >= argc)
@@ -1953,6 +1960,7 @@ void CheckParameters(int argc, char *argv[])
             " --hard                 Sets the difficulty to hard for tedlevel\n"
             " --nowait               Skips intro screens\n"
             " --nitemare3d            Starts the native Nitemare3D bootstrap\n"
+            " --n3d-preview           Opens wall-only Nitemare3D renderer preview\n"
             " --n3d-data <dir>        Directory containing MAP/IMG/WALLS/OBJECTS files\n"
             " --n3d-episode <1-3>     Nitemare3D episode to load (default: 1)\n"
             " --n3d-level <1-11>      Nitemare3D level to build (default: 1)\n"
@@ -2012,7 +2020,11 @@ int main (int argc, char *argv[])
 #endif
 
     if(param_nitemare3d)
+    {
+        if(param_n3d_preview)
+            return N3D_RunPreview(param_n3d_datadir, param_n3d_episode, param_n3d_level);
         return N3D_RunBootstrap(param_n3d_datadir, param_n3d_episode, param_n3d_level);
+    }
 
     CheckForEpisodes();
 
