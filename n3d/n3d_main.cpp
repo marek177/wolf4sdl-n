@@ -1,6 +1,7 @@
 #include "n3d_main.h"
 #include "n3d_data.h"
 #include "n3d_world.h"
+#include "n3d_render_bridge.h"
 
 #include <stdio.h>
 #include <string>
@@ -10,6 +11,7 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     const std::string root = (dataDir && *dataDir) ? dataDir : ".";
     n3d::EpisodeData data;
     n3d::WorldState world;
+    n3d::RenderMap renderMap;
     std::string error;
 
     if(!n3d::loadEpisode(root, episode, data, error))
@@ -21,6 +23,28 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     {
         fprintf(stderr, "Nitemare3D world build failed: %s\n", error.c_str());
         return 1;
+    }
+    if(!n3d::buildRenderMap(data, world, renderMap, error))
+    {
+        fprintf(stderr, "Nitemare3D render-map build failed: %s\n", error.c_str());
+        return 1;
+    }
+
+    unsigned opaqueCells = 0;
+    unsigned width64Cells = 0;
+    unsigned width128Cells = 0;
+    unsigned otherWidthCells = 0;
+    for(size_t i = 0; i < renderMap.cells.size(); ++i)
+    {
+        if(!renderMap.cells[i].opaque)
+            continue;
+        ++opaqueCells;
+        if(renderMap.cells[i].textureWidth == 64)
+            ++width64Cells;
+        else if(renderMap.cells[i].textureWidth == 128)
+            ++width128Cells;
+        else
+            ++otherWidthCells;
     }
 
     printf("Nitemare3D resource bootstrap OK\n");
@@ -45,7 +69,10 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
            (unsigned)data.img.exactObjectFrameRefs());
     printf("  WALLS records  : %u\n", (unsigned)data.walls.records().size());
     printf("  OBJECTS records: %u\n", (unsigned)data.objects.records().size());
-    printf("\nStage 2 complete: MAP class tables, world cells and player START are decoded natively.\n");
+    printf("  renderable cells: %u\n", opaqueCells);
+    printf("  texture widths : 64=%u 128=%u other=%u\n",
+           width64Cells, width128Cells, otherWidthCells);
+    printf("\nStage 3 complete: Nitemare3D wall frames are render-ready as 64-sample columns with native frame widths.\n");
 
     return 0;
 }
