@@ -9,6 +9,7 @@
 #include "wl_def.h"
 #pragma hdrstop
 #include "wl_atmos.h"
+#include "n3d/n3d_main.h"
 #include <SDL_syswm.h>
 
 
@@ -102,6 +103,9 @@ int     param_audiobuffer = 2048 / (44100 / param_samplerate);
 int     param_mission = 0;
 boolean param_goodtimes = false;
 boolean param_ignorenumchunks = false;
+boolean param_nitemare3d = false;
+char    param_n3d_datadir[256] = ".";
+int     param_n3d_episode = 1;
 
 /*
 =============================================================================
@@ -1701,6 +1705,40 @@ void CheckParameters(int argc, char *argv[])
             param_difficulty = 3;
         else IFARG("--nowait")
             param_nowait = true;
+        else IFARG("--nitemare3d")
+            param_nitemare3d = true;
+        else IFARG("--n3d-data")
+        {
+            if(++i >= argc)
+            {
+                printf("The n3d-data option is missing the directory argument!\n");
+                hasError = true;
+            }
+            else if(strlen(argv[i]) >= sizeof(param_n3d_datadir))
+            {
+                printf("The Nitemare3D data directory is too long!\n");
+                hasError = true;
+            }
+            else
+                strcpy(param_n3d_datadir, argv[i]);
+        }
+        else IFARG("--n3d-episode")
+        {
+            if(++i >= argc)
+            {
+                printf("The n3d-episode option is missing the episode argument!\n");
+                hasError = true;
+            }
+            else
+            {
+                param_n3d_episode = atoi(argv[i]);
+                if(param_n3d_episode < 1 || param_n3d_episode > 3)
+                {
+                    printf("The Nitemare3D episode must be between 1 and 3!\n");
+                    hasError = true;
+                }
+            }
+        }
         else IFARG("--tedlevel")
         {
             if(++i >= argc)
@@ -1896,6 +1934,9 @@ void CheckParameters(int argc, char *argv[])
             " --normal               Sets the difficulty to normal for tedlevel\n"
             " --hard                 Sets the difficulty to hard for tedlevel\n"
             " --nowait               Skips intro screens\n"
+            " --nitemare3d            Starts the native Nitemare3D bootstrap\n"
+            " --n3d-data <dir>        Directory containing MAP/IMG/WALLS/OBJECTS files\n"
+            " --n3d-episode <1-3>     Nitemare3D episode to load (default: 1)\n"
             " --windowed[-mouse]     Starts the game in a window [and grabs mouse]\n"
             " --res <width> <height> Sets the screen resolution\n"
             "                        (must be multiple of 320x200 or 320x240)\n"
@@ -1950,6 +1991,9 @@ int main (int argc, char *argv[])
 #else
     CheckParameters(argc, argv);
 #endif
+
+    if(param_nitemare3d)
+        return N3D_RunBootstrap(param_n3d_datadir, param_n3d_episode);
 
     CheckForEpisodes();
 
