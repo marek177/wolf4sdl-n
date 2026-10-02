@@ -48,6 +48,7 @@ struct DoorController
 class DoorRuntime
 {
 public:
+    DoorRuntime() : world_(0) {}
     bool build(const WorldState &world, std::string &error);
 
     const std::vector<DoorController> &controllers() const { return controllers_; }
