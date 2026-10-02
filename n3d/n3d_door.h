@@ -11,6 +11,8 @@
 namespace n3d
 {
 
+class MapArchive;
+
 enum DoorState
 {
     DoorOpen = 0,
@@ -41,6 +43,7 @@ struct DoorController
     int timer;
     int motion; // 0..64 world units of opening progress.
     bool latch;
+    uint8_t credentialSelector;
 
     DoorController();
 };
@@ -48,8 +51,8 @@ struct DoorController
 class DoorRuntime
 {
 public:
-    DoorRuntime() : world_(0) {}
-    bool build(const WorldState &world, std::string &error);
+    DoorRuntime() : world_(0), keyMask_(0), idCardMask_(0) {}
+    bool build(const WorldState &world, const MapArchive &map, std::string &error);
 
     const std::vector<DoorController> &controllers() const { return controllers_; }
     DoorController *find(int x, int y);
@@ -59,6 +62,13 @@ public:
     bool isDoorCell(int x, int y) const;
 
     DoorUseResult use(int x, int y, int playerSector);
+
+    void setKeyMask(uint8_t mask) { keyMask_ = mask; }
+    void setIdCardMask(uint8_t mask) { idCardMask_ = mask; }
+    uint8_t keyMask() const { return keyMask_; }
+    uint8_t idCardMask() const { return idCardMask_; }
+    void grantKey(unsigned selector);
+    void grantIdCard(unsigned selector);
 
     // One original-style geometry/motion update. States 2/3 advance by
     // exactly two Nitemare3D world units.
@@ -76,6 +86,8 @@ private:
 
     const WorldState *world_;
     std::vector<DoorController> controllers_;
+    uint8_t keyMask_;
+    uint8_t idCardMask_;
 };
 
 bool isDoorClass(uint8_t wallClass);
