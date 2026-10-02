@@ -2,6 +2,7 @@
 #include "n3d_data.h"
 #include "n3d_world.h"
 #include "n3d_render_bridge.h"
+#include "n3d_runtime.h"
 
 #include <stdio.h>
 #include <string>
@@ -9,26 +10,17 @@
 int N3D_RunBootstrap(const char *dataDir, int episode, int level)
 {
     const std::string root = (dataDir && *dataDir) ? dataDir : ".";
-    n3d::EpisodeData data;
-    n3d::WorldState world;
-    n3d::RenderMap renderMap;
     std::string error;
 
-    if(!n3d::loadEpisode(root, episode, data, error))
+    if(!n3d::loadRuntime(root, episode, level, error))
     {
         fprintf(stderr, "Nitemare3D bootstrap failed: %s\n", error.c_str());
         return 1;
     }
-    if(level < 1 || !n3d::buildWorld(data, static_cast<size_t>(level - 1), world, error))
-    {
-        fprintf(stderr, "Nitemare3D world build failed: %s\n", error.c_str());
-        return 1;
-    }
-    if(!n3d::buildRenderMap(data, world, renderMap, error))
-    {
-        fprintf(stderr, "Nitemare3D render-map build failed: %s\n", error.c_str());
-        return 1;
-    }
+
+    const n3d::EpisodeData &data = *n3d::runtimeEpisode();
+    const n3d::WorldState &world = *n3d::runtimeWorld();
+    const n3d::RenderMap &renderMap = *n3d::runtimeRenderMap();
 
     unsigned opaqueCells = 0;
     unsigned width64Cells = 0;
@@ -72,7 +64,7 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     printf("  renderable cells: %u\n", opaqueCells);
     printf("  texture widths : 64=%u 128=%u other=%u\n",
            width64Cells, width128Cells, otherWidthCells);
-    printf("\nStage 3 complete: Nitemare3D wall frames are render-ready as 64-sample columns with native frame widths.\n");
+    printf("\nStage 4 complete: persistent Nitemare3D runtime is ready for the Wolf4SDL raycaster bridge.\n");
 
     return 0;
 }
