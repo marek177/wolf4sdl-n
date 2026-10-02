@@ -2,6 +2,7 @@
 
 #include "n3d_data.h"
 #include "n3d_door.h"
+#include "n3d_object.h"
 #include "n3d_render_bridge.h"
 #include "n3d_world.h"
 
@@ -13,6 +14,7 @@ EpisodeData g_episode;
 WorldState g_world;
 RenderMap g_renderMap;
 DoorRuntime g_doors;
+ObjectRuntime g_objects;
 bool g_active = false;
 uint8_t g_fallbackColumn[64] = {0};
 }
@@ -42,6 +44,13 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
         return false;
     }
 
+    if(!g_objects.build(g_world, g_episode.map, error))
+    {
+        unloadRuntime();
+        return false;
+    }
+    g_objects.bindDoors(&g_doors);
+
     g_active = true;
     return true;
 }
@@ -53,6 +62,7 @@ void unloadRuntime()
     g_world = WorldState();
     g_renderMap = RenderMap();
     g_doors = DoorRuntime();
+    g_objects = ObjectRuntime();
 }
 
 bool runtimeActive()
@@ -85,11 +95,38 @@ const DoorRuntime *runtimeDoorsConst()
     return g_active ? &g_doors : 0;
 }
 
+ObjectRuntime *runtimeObjects()
+{
+    return g_active ? &g_objects : 0;
+}
+
+const ObjectRuntime *runtimeObjectsConst()
+{
+    return g_active ? &g_objects : 0;
+}
+
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData)
 {
     (void)wallId;
     (void)userData;
     return g_active && g_doors.allowsPassage(tileX, tileY);
+}
+
+void runtimeObjectTouchQuery(int tileX, int tileY,
+                             uint8_t objectId, uint8_t objectClass,
+                             void *userData)
+{
+    (void)objectId;
+    (void)objectClass;
+    (void)userData;
+    if(g_active)
+        g_objects.touch(tileX, tileY);
+}
+
+bool runtimeObjectOccupiedQuery(int tileX, int tileY, void *userData)
+{
+    (void)userData;
+    return g_active && g_objects.occupiedAt(tileX, tileY);
 }
 
 DoorUseResult runtimeUseDoor(int tileX, int tileY, int playerSector)
@@ -108,7 +145,8 @@ void runtimeTickDoorMotion()
 void runtimeTickDoorAutoClose(int playerTileX, int playerTileY)
 {
     if(g_active)
-        g_doors.tickAutoClose(playerTileX, playerTileY, 0, 0);
+        g_doors.tickAutoClose(playerTileX, playerTileY,
+                              &runtimeObjectOccupiedQuery, 0);
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
