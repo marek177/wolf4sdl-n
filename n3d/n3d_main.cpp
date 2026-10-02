@@ -3,6 +3,7 @@
 #include "n3d_world.h"
 #include "n3d_render_bridge.h"
 #include "n3d_runtime.h"
+#include "n3d_door.h"
 
 #include <stdio.h>
 #include <string>
@@ -64,7 +65,11 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     printf("  renderable cells: %u\n", opaqueCells);
     printf("  texture widths : 64=%u 128=%u other=%u\n",
            width64Cells, width128Cells, otherWidthCells);
-    printf("\nStage 4 complete: persistent Nitemare3D runtime is ready for the Wolf4SDL raycaster bridge.\n");
+
+    const n3d::DoorRuntime *doors = n3d::runtimeDoorsConst();
+    printf("  door controllers: %u / 64\n",
+           doors ? (unsigned)doors->controllers().size() : 0u);
+    printf("\nStage 5 complete: persistent Nitemare3D runtime now includes collision and door/USE controllers.\n");
 
     return 0;
 }
