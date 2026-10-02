@@ -97,6 +97,7 @@
     <ClCompile Include="id_vl.cpp" />
     <ClCompile Include="n3d\\n3d_data.cpp" />
     <ClCompile Include="n3d\\n3d_main.cpp" />
+    <ClCompile Include="n3d\\n3d_world.cpp" />
     <ClCompile Include="sdl_winmain.cpp" />
     <ClCompile Include="signon.cpp" />
     <ClCompile Include="wl_act1.cpp" />
@@ -154,6 +155,7 @@
     <ClInclude Include="id_vl.h" />
     <ClInclude Include="n3d\\n3d_data.h" />
     <ClInclude Include="n3d\\n3d_main.h" />
+    <ClInclude Include="n3d\\n3d_world.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="wl_atmos.h" />
     <ClInclude Include="wl_cloudsky.h" />
