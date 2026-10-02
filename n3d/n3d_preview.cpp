@@ -255,16 +255,16 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
 
         if(keys[SDLK_a])
         {
-            desiredX -= static_cast<int>(
+            desiredX += static_cast<int>(
                 (static_cast<int32_t>(costable[strafeAngle]) * moveSpeed) >> 16);
-            desiredY += static_cast<int>(
+            desiredY -= static_cast<int>(
                 (static_cast<int32_t>(sintable[strafeAngle]) * moveSpeed) >> 16);
         }
         if(keys[SDLK_d])
         {
-            desiredX += static_cast<int>(
+            desiredX -= static_cast<int>(
                 (static_cast<int32_t>(costable[strafeAngle]) * moveSpeed) >> 16);
-            desiredY -= static_cast<int>(
+            desiredY += static_cast<int>(
                 (static_cast<int32_t>(sintable[strafeAngle]) * moveSpeed) >> 16);
         }
 
