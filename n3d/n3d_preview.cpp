@@ -137,6 +137,10 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
     player->y = (static_cast<int32_t>(world->playerStart.y) << TILESHIFT) + TILEGLOBAL / 2;
     player->angle = static_cast<short>(StartAngle(world->playerStart.direction));
 
+    printf("Nitemare3D Wolf4SDL preview: E%dM%d\n", episode, level);
+    printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, Esc quit\n");
+    printf("Collision: recovered 27/28-unit player probes; dynamic doors currently treated as blocking\n");
+
     bool running = true;
     while(running)
     {
