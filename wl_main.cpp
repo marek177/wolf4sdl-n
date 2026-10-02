@@ -106,6 +106,7 @@ boolean param_ignorenumchunks = false;
 boolean param_nitemare3d = false;
 char    param_n3d_datadir[256] = ".";
 int     param_n3d_episode = 1;
+int     param_n3d_level = 1;
 
 /*
 =============================================================================
@@ -1739,6 +1740,23 @@ void CheckParameters(int argc, char *argv[])
                 }
             }
         }
+        else IFARG("--n3d-level")
+        {
+            if(++i >= argc)
+            {
+                printf("The n3d-level option is missing the level argument!\n");
+                hasError = true;
+            }
+            else
+            {
+                param_n3d_level = atoi(argv[i]);
+                if(param_n3d_level < 1 || param_n3d_level > 11)
+                {
+                    printf("The Nitemare3D level must be between 1 and 11!\n");
+                    hasError = true;
+                }
+            }
+        }
         else IFARG("--tedlevel")
         {
             if(++i >= argc)
@@ -1937,6 +1955,7 @@ void CheckParameters(int argc, char *argv[])
             " --nitemare3d            Starts the native Nitemare3D bootstrap\n"
             " --n3d-data <dir>        Directory containing MAP/IMG/WALLS/OBJECTS files\n"
             " --n3d-episode <1-3>     Nitemare3D episode to load (default: 1)\n"
+            " --n3d-level <1-11>      Nitemare3D level to build (default: 1)\n"
             " --windowed[-mouse]     Starts the game in a window [and grabs mouse]\n"
             " --res <width> <height> Sets the screen resolution\n"
             "                        (must be multiple of 320x200 or 320x240)\n"
@@ -1993,7 +2012,7 @@ int main (int argc, char *argv[])
 #endif
 
     if(param_nitemare3d)
-        return N3D_RunBootstrap(param_n3d_datadir, param_n3d_episode);
+        return N3D_RunBootstrap(param_n3d_datadir, param_n3d_episode, param_n3d_level);
 
     CheckForEpisodes();
 
