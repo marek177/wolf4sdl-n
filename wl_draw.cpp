@@ -6,6 +6,7 @@
 #include "wl_cloudsky.h"
 #include "wl_atmos.h"
 #include "wl_shade.h"
+#include "n3d/n3d_runtime.h"
 
 /*
 =============================================================================
@@ -358,6 +359,35 @@ void HitVertWall (void)
     int wallpic;
     int texture;
 
+    if(n3d::runtimeActive())
+    {
+        const int32_t textureCoordinate = yintercept + texdelta;
+        const bool reverse = xtilestep == -1;
+        unsigned textureU = 0;
+        unsigned textureWidth = 0;
+
+        if(reverse)
+            xintercept += TILEGLOBAL;
+
+        if(lastside != -1)
+            ScalePost();
+
+        lastside = 1;
+        lastintercept = xtile;
+        lasttilehit = tilehit;
+        wallheight[pixx] = CalcHeight();
+        postx = pixx;
+        postwidth = 1;
+        postsource = const_cast<byte *>(
+            n3d::runtimeWallColumn(static_cast<uint8_t>(tilehit),
+                                   textureCoordinate,
+                                   reverse,
+                                   &textureU,
+                                   &textureWidth));
+        lasttexture = static_cast<int>(textureU * 64u);
+        return;
+    }
+
     texture = ((yintercept+texdelta)>>TEXTUREFROMFIXEDSHIFT)&TEXTUREMASK;
     if (xtilestep == -1)
     {
@@ -423,6 +453,35 @@ void HitHorizWall (void)
 {
     int wallpic;
     int texture;
+
+    if(n3d::runtimeActive())
+    {
+        const int32_t textureCoordinate = xintercept + texdelta;
+        const bool reverse = ytilestep != -1;
+        unsigned textureU = 0;
+        unsigned textureWidth = 0;
+
+        if(ytilestep == -1)
+            yintercept += TILEGLOBAL;
+
+        if(lastside != -1)
+            ScalePost();
+
+        lastside = 0;
+        lastintercept = ytile;
+        lasttilehit = tilehit;
+        wallheight[pixx] = CalcHeight();
+        postx = pixx;
+        postwidth = 1;
+        postsource = const_cast<byte *>(
+            n3d::runtimeWallColumn(static_cast<uint8_t>(tilehit),
+                                   textureCoordinate,
+                                   reverse,
+                                   &textureU,
+                                   &textureWidth));
+        lasttexture = static_cast<int>(textureU * 64u);
+        return;
+    }
 
     texture = ((xintercept+texdelta)>>TEXTUREFROMFIXEDSHIFT)&TEXTUREMASK;
     if (ytilestep == -1)
@@ -1206,7 +1265,13 @@ vertentry:
             tilehit=((byte *)tilemap)[xspot];
             if(tilehit)
             {
-                if(tilehit&0x80)
+                if(n3d::runtimeActive())
+                {
+                    xintercept = xtile << TILESHIFT;
+                    ytile = (short)(yintercept >> TILESHIFT);
+                    HitVertWall();
+                }
+                else if(tilehit&0x80)
                 {
                     int32_t yintbuf=yintercept+(ystep>>1);
                     if((yintbuf>>16)!=(yintercept>>16))
@@ -1361,7 +1426,13 @@ horizentry:
             tilehit=((byte *)tilemap)[yspot];
             if(tilehit)
             {
-                if(tilehit&0x80)
+                if(n3d::runtimeActive())
+                {
+                    yintercept = ytile << TILESHIFT;
+                    xtile = (short)(xintercept >> TILESHIFT);
+                    HitHorizWall();
+                }
+                else if(tilehit&0x80)
                 {
                     int32_t xintbuf=xintercept+(xstep>>1);
                     if((xintbuf>>16)!=(xintercept>>16))
