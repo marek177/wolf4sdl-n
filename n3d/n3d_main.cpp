@@ -69,7 +69,25 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     const n3d::DoorRuntime *doors = n3d::runtimeDoorsConst();
     printf("  door controllers: %u / 64\n",
            doors ? (unsigned)doors->controllers().size() : 0u);
-    printf("\nStage 5 complete: persistent Nitemare3D runtime now includes collision and door/USE controllers.\n");
+
+    const n3d::ObjectRuntime *objects = n3d::runtimeObjectsConst();
+    unsigned activeObjects = 0;
+    unsigned collectibleObjects = 0;
+    if(objects)
+    {
+        for(size_t i = 0; i < objects->objects().size(); ++i)
+        {
+            const n3d::RuntimeObject &object = objects->objects()[i];
+            if(!object.active)
+                continue;
+            ++activeObjects;
+            if((object.properties & 0x04) != 0)
+                ++collectibleObjects;
+        }
+    }
+    printf("  world OBJECTs   : %u / 350 (%u collectible)\n",
+           activeObjects, collectibleObjects);
+    printf("\nStage 6 complete: persistent Nitemare3D runtime now includes collision, doors and world OBJECT pickups.\n");
 
     return 0;
 }
