@@ -70,6 +70,7 @@ public:
     const std::vector<uint32_t> &wallSlotOffsets() const { return wallSlotOffsets_; }
     const std::vector<uint32_t> &objectSlotOffsets() const { return objectSlotOffsets_; }
     const std::vector<ImgFrame> &frames() const { return frames_; }
+    const ImgFrame *frameAtExactOffset(uint32_t offset) const;
 
     size_t nonZeroWallSlots() const;
     size_t nonZeroObjectSlots() const;
