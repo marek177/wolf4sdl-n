@@ -36,9 +36,13 @@ public:
 
     uint16_t declaredLevelCount() const { return declaredLevelCount_; }
     const std::vector<LevelMap> &levels() const { return levels_; }
+    uint8_t wallClass(uint8_t id) const { return wallClasses_[id]; }
+    uint8_t objectClass(uint8_t id) const { return objectClasses_[id]; }
 
 private:
     uint16_t declaredLevelCount_;
+    uint8_t wallClasses_[256];
+    uint8_t objectClasses_[256];
     std::vector<LevelMap> levels_;
 };
 
