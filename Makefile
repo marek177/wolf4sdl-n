@@ -60,6 +60,7 @@ SRCS += id_vh.cpp
 SRCS += id_vl.cpp
 SRCS += n3d/n3d_data.cpp
 SRCS += n3d/n3d_main.cpp
+SRCS += n3d/n3d_world.cpp
 SRCS += signon.cpp
 SRCS += wl_act1.cpp
 SRCS += wl_act2.cpp
