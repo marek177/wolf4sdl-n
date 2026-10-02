@@ -32,14 +32,16 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
     if(!buildRenderMap(episodeData, world, renderMap, error))
         return false;
 
-    DoorRuntime doors;
-    if(!doors.build(world, error))
-        return false;
-
     g_episode = episodeData;
     g_world = world;
     g_renderMap = renderMap;
-    g_doors = doors;
+
+    if(!g_doors.build(g_world, error))
+    {
+        unloadRuntime();
+        return false;
+    }
+
     g_active = true;
     return true;
 }
