@@ -63,6 +63,7 @@ int     CalcRotate (objtype *ob);
 void    DrawScaleds (void);
 void    CalcTics (void);
 void    ThreeDRefresh (void);
+void    CalcViewVariables (void);
 
 
 
