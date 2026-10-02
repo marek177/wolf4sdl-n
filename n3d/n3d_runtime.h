@@ -1,6 +1,8 @@
 #ifndef N3D_RUNTIME_H
 #define N3D_RUNTIME_H
 
+#include "n3d_door.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
@@ -10,8 +12,6 @@ namespace n3d
 struct EpisodeData;
 struct WorldState;
 struct RenderMap;
-class DoorRuntime;
-enum DoorUseResult;
 
 bool loadRuntime(const std::string &root, int episode, int level, std::string &error);
 void unloadRuntime();
