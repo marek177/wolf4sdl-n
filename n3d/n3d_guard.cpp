@@ -13,6 +13,19 @@ int absInt(int value)
     return value < 0 ? -value : value;
 }
 
+uint8_t facingFromVector(int dx, int dy, uint8_t fallback)
+{
+    if(dx == 0 && dy < 0) return 0;
+    if(dx > 0 && dy < 0) return 1;
+    if(dx > 0 && dy == 0) return 2;
+    if(dx > 0 && dy > 0) return 3;
+    if(dx == 0 && dy > 0) return 4;
+    if(dx < 0 && dy > 0) return 5;
+    if(dx < 0 && dy == 0) return 6;
+    if(dx < 0 && dy < 0) return 7;
+    return fallback;
+}
+
 }
 
 GuardRuntimeRecord::GuardRuntimeRecord()
@@ -336,7 +349,12 @@ void GuardRuntime::tickPreviewMovement(int32_t playerWorldX, int32_t playerWorld
         }
 
         if(newX != object.worldX || newY != object.worldY)
+        {
+            const int actualDx = static_cast<int>(newX - object.worldX);
+            const int actualDy = static_cast<int>(newY - object.worldY);
+            guard.facing = facingFromVector(actualDx, actualDy, guard.facing);
             commitObjectPosition(i, object.worldX, object.worldY, newX, newY);
+        }
     }
 }
 
