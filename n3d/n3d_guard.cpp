@@ -75,10 +75,10 @@ GuardRuntime::InitialProfile GuardRuntime::initialProfile(uint8_t objectClass) c
 
 void GuardRuntime::setMovementFromFacing(GuardRuntimeRecord &guard)
 {
-    // Recovered movement table: adjacent octants share the same cardinal
-    // movement component pair.
-    static const int8_t dx[8] = {0, 1, 1, 0, 0, -1, -1, 0};
-    static const int8_t dy[8] = {-1, 0, 0, 1, 1, 0, 0, -1};
+    // Recovered eight-way movement signs. Diagonal facings intentionally
+    // carry both components; the original does not normalize diagonal speed.
+    static const int8_t dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int8_t dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
 
     const unsigned i = guard.facing & 7u;
     const int scale = guard.strategy == 2 ? 16 : 8;
