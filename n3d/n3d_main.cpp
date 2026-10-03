@@ -87,7 +87,16 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     }
     printf("  world OBJECTs   : %u / 350 (%u collectible)\n",
            activeObjects, collectibleObjects);
-    printf("\nStage 6 complete: persistent Nitemare3D runtime now includes collision, doors and world OBJECT pickups.\n");
+    if(objects)
+    {
+        const n3d::InventoryState &inv = objects->inventory();
+        printf("  inventory       : keys=%02X cards=%02X pentagrams=%02X weapons=%02X\n",
+               (unsigned)inv.keyMask,
+               (unsigned)inv.idCardMask,
+               (unsigned)inv.pentagramMask,
+               (unsigned)inv.ownedWeapons);
+    }
+    printf("\nStage 7 complete: persistent Nitemare3D runtime includes the recovered collectible dispatcher through class 0x3D.\n");
 
     return 0;
 }
