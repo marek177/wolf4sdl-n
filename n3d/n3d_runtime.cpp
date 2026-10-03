@@ -62,7 +62,8 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
         return false;
     }
 
-    g_projectiles.bind(&g_world, &g_objects, &g_doors, &g_guards);
+    g_projectiles.bind(&g_world, &g_objects, &g_doors, &g_guards,
+                       &g_episode.map, &g_episode.img);
 
     g_active = true;
     return true;
@@ -253,14 +254,33 @@ ProjectileFireResult runtimeFireProjectile(int32_t playerWorldX,
                               weaponId, directionX, directionY);
 }
 
-ProjectileUpdateReport runtimeTickProjectiles(unsigned substeps,
+ProjectileUpdateReport runtimeTickProjectiles(uint32_t nowMs,
+                                              unsigned substeps,
                                               int difficultyCode,
                                               int viewportCenterY)
 {
     if(!g_active)
         return ProjectileUpdateReport();
 
-    return g_projectiles.tick(substeps, difficultyCode, viewportCenterY);
+    return g_projectiles.tick(nowMs, substeps,
+                              difficultyCode, viewportCenterY);
+}
+
+bool runtimeProjectileTexture(size_t slotIndex,
+                              ObjectTextureView &out)
+{
+    out = ObjectTextureView();
+
+    if(!g_active || slotIndex >= ProjectileRuntime::SlotCount)
+        return false;
+
+    const ProjectileSlot &slot = g_projectiles.slot(slotIndex);
+    if(slot.lifecycle == 0 || slot.sequenceObjectId == 0xff)
+        return false;
+
+    ObjectTextureBridge bridge(g_episode.img);
+    return bridge.sequenceTexture(slot.sequenceObjectId,
+                                  slot.frame, out);
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
