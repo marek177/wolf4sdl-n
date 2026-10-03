@@ -13,9 +13,12 @@ RuntimeObject::RuntimeObject()
 }
 
 InventoryState::InventoryState()
-    : keyMask(0), idCardMask(0), pentagramMask(0), health(100),
+    : keyMask(0), idCardMask(0), pentagramMask(0),
+      ownedWeapons(0), auxInventory(0), panelCharge(0), health(100),
       pistolAmmo(0), plasmaAmmo(0), wandAmmo(0),
-      crystalBall(0), magicEye(0), meter(0), score(0)
+      crystalBall(0), magicEye(0), meter(0), bonusCounter(0),
+      activeWeapon(0xff), pendingWeapon(0xff), weaponSelectionMode(0),
+      lastScrollSubtype(0xff), score(0)
 {
 }
 
@@ -115,6 +118,44 @@ bool ObjectRuntime::occupiedAt(int tileX, int tileY) const
     return object != 0 && (object->properties & 0x02) != 0;
 }
 
+uint8_t *ObjectRuntime::ammoPoolForWeapon(unsigned weapon)
+{
+    switch(weapon)
+    {
+        case 0:
+        case 3:
+            return &inventory_.plasmaAmmo;
+        case 1:
+            return &inventory_.wandAmmo;
+        case 2:
+            return &inventory_.pistolAmmo;
+    }
+    return 0;
+}
+
+uint8_t *ObjectRuntime::ammoPoolForSubtype(unsigned subtype)
+{
+    // AMMO class ordering in supplied OBJECTS data:
+    // 0 = Silver bullets, 1 = Plasma power cell, 2 = Spell book.
+    switch(subtype)
+    {
+        case 0: return &inventory_.pistolAmmo;
+        case 1: return &inventory_.plasmaAmmo;
+        case 2: return &inventory_.wandAmmo;
+    }
+    return 0;
+}
+
+void ObjectRuntime::clampHudState()
+{
+    if(inventory_.health > 100) inventory_.health = 100;
+    if(inventory_.pistolAmmo > 100) inventory_.pistolAmmo = 100;
+    if(inventory_.plasmaAmmo > 100) inventory_.plasmaAmmo = 100;
+    if(inventory_.wandAmmo > 100) inventory_.wandAmmo = 100;
+    if(inventory_.crystalBall > 100) inventory_.crystalBall = 100;
+    if(inventory_.magicEye > 100) inventory_.magicEye = 100;
+}
+
 void ObjectRuntime::remove(RuntimeObject &object)
 {
     object.active = false;
@@ -161,23 +202,126 @@ PickupResult ObjectRuntime::touch(int tileX, int tileY)
             remove(*object);
             return PickupAccepted;
 
-        // The remaining collectible classes have a statically recovered
-        // dispatcher, but are intentionally left active until their complete
-        // player/HUD state is installed in this Wolf4SDL port.
         case 0x31:
+            inventory_.score += 200;
+            remove(*object);
+            return PickupAccepted;
+
         case 0x32:
+        {
+            if(inventory_.panelCharge >= 99 || subtype >= 8)
+                return PickupRejected;
+            const unsigned add = 1u << subtype;
+            const unsigned value = static_cast<unsigned>(inventory_.panelCharge) + add;
+            inventory_.panelCharge =
+                static_cast<uint8_t>(value > 99u ? 99u : value);
+            remove(*object);
+            return PickupAccepted;
+        }
+
         case 0x33:
+        {
+            if(inventory_.health >= 100 || subtype >= 8)
+                return PickupRejected;
+            const unsigned add = 20u >> subtype;
+            inventory_.health =
+                static_cast<uint8_t>(static_cast<unsigned>(inventory_.health) + add);
+            remove(*object);
+            return PickupAccepted;
+        }
+
         case 0x34:
+            if(inventory_.health >= 100)
+                return PickupRejected;
+            inventory_.health =
+                static_cast<uint8_t>(static_cast<unsigned>(inventory_.health) + 30u);
+            inventory_.score += 250;
+            remove(*object);
+            return PickupAccepted;
+
         case 0x35:
+            inventory_.health = 100;
+            inventory_.plasmaAmmo = 100;
+            inventory_.score += 500;
+            ++inventory_.bonusCounter;
+            remove(*object);
+            return PickupAccepted;
+
         case 0x36:
+        {
+            if(subtype >= 4)
+                return PickupRejected;
+
+            inventory_.ownedWeapons =
+                static_cast<uint8_t>(inventory_.ownedWeapons | (1u << subtype));
+            inventory_.pendingWeapon = static_cast<uint8_t>(subtype);
+            inventory_.weaponSelectionMode = subtype == 2 ? 1 : 2;
+
+            uint8_t *ammo = ammoPoolForWeapon(subtype);
+            if(ammo)
+                *ammo = 50;
+
+            remove(*object);
+            return PickupAccepted;
+        }
+
         case 0x37:
+            if(subtype >= 8)
+                return PickupRejected;
+            inventory_.auxInventory =
+                static_cast<uint8_t>(inventory_.auxInventory | (1u << subtype));
+            remove(*object);
+            return PickupAccepted;
+
         case 0x38:
+            if(inventory_.meter >= 100)
+                return PickupRejected;
+            inventory_.meter =
+                static_cast<uint8_t>(static_cast<unsigned>(inventory_.meter) + 20u);
+            remove(*object);
+            return PickupAccepted;
+
         case 0x39:
+        {
+            uint8_t *ammo = ammoPoolForSubtype(subtype);
+            if(!ammo || *ammo >= 100)
+                return PickupRejected;
+            *ammo = static_cast<uint8_t>(static_cast<unsigned>(*ammo) + 20u);
+            remove(*object);
+            return PickupAccepted;
+        }
+
         case 0x3A:
+            if(inventory_.crystalBall >= 100)
+                return PickupRejected;
+            inventory_.crystalBall =
+                static_cast<uint8_t>(static_cast<unsigned>(inventory_.crystalBall) + 20u);
+            remove(*object);
+            return PickupAccepted;
+
         case 0x3B:
+            if(inventory_.magicEye >= 100)
+                return PickupRejected;
+            inventory_.magicEye =
+                static_cast<uint8_t>(static_cast<unsigned>(inventory_.magicEye) + 20u);
+            remove(*object);
+            return PickupAccepted;
+
         case 0x3C:
+            if(subtype >= 8)
+                return PickupRejected;
+            inventory_.pentagramMask =
+                static_cast<uint8_t>(inventory_.pentagramMask | (1u << subtype));
+            remove(*object);
+            return PickupAccepted;
+
         case 0x3D:
-            return PickupUnsupported;
+            // The original invokes the scroll/script helper and accepts the
+            // collectible. The UI/script presentation is deferred, but the
+            // persistent pickup lifecycle and subtype are preserved here.
+            inventory_.lastScrollSubtype = static_cast<uint8_t>(subtype);
+            remove(*object);
+            return PickupAccepted;
     }
 
     return PickupNone;
