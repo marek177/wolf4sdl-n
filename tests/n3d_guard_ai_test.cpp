@@ -500,6 +500,146 @@ int main()
                     "suppressed state-4 attack continues to fallback state 5")) return 1;
     }
 
+    // Current-generation Silver Pistol hitscan uses aim stamp + 16-cell LOS.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+        g.hp = 100;
+
+        guards.beginRenderGeneration();
+        guards.markProjectedObject(g.objectIndex, 100, 140, 164, 152);
+
+        const n3d::PlayerHitReport hit =
+            guards.fireHitscan(playerX, playerY, 2, 1, 80);
+
+        if(!require(hit.hitCount == 1, "current render stamp admits hitscan target")) return 1;
+        if(!require(hit.killCount == 1, "high projected baseline can kill target")) return 1;
+        if(!require(hit.scoreDelta == 100, "Skeleton kill score is 100")) return 1;
+        if(!require(g.hp == 0, "lethal hitscan clears GUARD HP")) return 1;
+        if(!require(g.state == 0 && g.nextState == 9,
+                    "ground lethal hit enters state 0 then 9")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 9, "death sequence timer advances to state 9")) return 1;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0x0A, "state 9 finalizes to terminal 0x0A")) return 1;
+
+        (void)o;
+    }
+
+    // A render stamp becomes stale as soon as a new projection generation begins.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        guards.beginRenderGeneration();
+        guards.markProjectedObject(g.objectIndex, 100, 140, 164, 152);
+        guards.beginRenderGeneration();
+
+        const n3d::PlayerHitReport hit =
+            guards.fireHitscan(playerX, playerY, 2, 1, 80);
+        if(!require(hit.hitCount == 0, "stale render generation rejects hitscan")) return 1;
+    }
+
+    // Horizontal center overlap uses the recovered +/-4-pixel expansion.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        guards.beginRenderGeneration();
+        guards.markProjectedObject(g.objectIndex, 100, 100, 120, 152);
+
+        const n3d::PlayerHitReport miss =
+            guards.fireHitscan(playerX, playerY, 2, 1, 80);
+        if(!require(miss.hitCount == 0, "off-center sprite gets no hitscan stamp")) return 1;
+
+        guards.beginRenderGeneration();
+        guards.markProjectedObject(g.objectIndex, 100, 149, 149, 152);
+        const n3d::PlayerHitReport slack =
+            guards.fireHitscan(playerX, playerY, 2, 1, 80);
+        if(!require(slack.hitCount == 1, "+/-4 pixel aim slack admits near-center sprite")) return 1;
+    }
+
+    // Nonlethal hit invalidates direction cache and enters recovered pain route.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+        g.state = 7;
+        g.hp = 255;
+        o.lastProjectedY = 81;
+
+        bool killed = false;
+        const uint8_t damage =
+            guards.applyPlayerWeaponHit(0, 2, 1, 80, &killed);
+
+        if(!require(damage != 0 && !killed, "nonlethal weapon hit returns damage")) return 1;
+        if(!require(g.hp < 255, "nonlethal hit subtracts GUARD HP")) return 1;
+        if(!require(g.directionCache == 8, "hit invalidates direction cache with 8")) return 1;
+        if(!require(g.state == 0 && g.nextState == 5,
+                    "state-7 hit uses sequence state 0 -> next 5")) return 1;
+    }
+
+    // Dracula humanoid fatal path transforms into Dracula-Bat after state 9.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+        o.objectClass = 0x11;
+        o.properties = n3d::objectPropertiesForClass(0x11);
+        o.lastProjectedY = 120;
+        g.hp = 1;
+
+        bool killed = false;
+        guards.applyPlayerWeaponHit(0, 2, 1, 80, &killed);
+        if(!require(killed, "Dracula humanoid phase can reach fatal path")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(o.objectClass == 0x14, "Dracula transforms to class 0x14")) return 1;
+        if(!require(g.hp == 255, "Dracula-Bat resets HP to 255")) return 1;
+        if(!require(g.state == 8 && g.nextState == 2,
+                    "Dracula-Bat resumes state 8 -> next 2")) return 1;
+        if(!require(g.timer == 1, "Dracula-Bat transform timer is 1")) return 1;
+        if(!require(o.verticalOffset == 0x23,
+                    "Dracula-Bat vertical anchor becomes 0x23")) return 1;
+    }
+
     std::remove("n3d_guard_ai_test.map");
     std::cout << "N3D GUARD AI core tests passed\n";
     return 0;
