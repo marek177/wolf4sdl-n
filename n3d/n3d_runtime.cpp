@@ -105,6 +105,18 @@ const ObjectRuntime *runtimeObjectsConst()
     return g_active ? &g_objects : 0;
 }
 
+bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out)
+{
+    if(!g_active)
+    {
+        out = ObjectTextureView();
+        return false;
+    }
+
+    ObjectTextureBridge bridge(g_episode.img);
+    return bridge.texture(objectId, out);
+}
+
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData)
 {
     (void)wallId;
