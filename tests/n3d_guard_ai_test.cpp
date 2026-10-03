@@ -23,6 +23,8 @@ bool writeSyntheticMap(const char *path)
 
     // wall ID 1 -> ordinary blocking wall class 1
     bytes[0x002 + 1] = 0x01;
+    // wall ID 2 -> normal vertical door class 0x31
+    bytes[0x002 + 2] = 0x31;
 
     // object IDs 1..4 -> START class 2 (N/E/S/W)
     for(int id = 1; id <= 4; ++id)
@@ -222,6 +224,47 @@ int main()
 
         if(!require(g.losResult == 1, "PERMEABLE object class passes LOS")) return 1;
         if(!require(g.state == 2, "permeable LOS can reacquire")) return 1;
+    }
+
+    // Dynamic door validator: closed blocks LOS, open passes.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        world.at(6, 5).wallId = 2;
+        world.at(6, 5).wallClass = 0x31;
+
+        std::string error;
+        if(!doors.build(world, episode.map, error))
+        {
+            std::cerr << error << "\n";
+            return 1;
+        }
+        objects.bindDoors(&doors);
+        if(!guards.build(world, episode.map, objects, &doors, error))
+        {
+            std::cerr << error << "\n";
+            return 1;
+        }
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 7;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.losResult == 0, "closed dynamic door blocks LOS")) return 1;
+
+        n3d::DoorController *door = doors.find(6, 5);
+        if(!require(door != 0, "door controller exists")) return 1;
+        door->state = n3d::DoorOpen;
+
+        g.state = 7;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.losResult == 1, "open dynamic door passes LOS")) return 1;
+        if(!require(g.state == 2, "open-door LOS can reacquire")) return 1;
     }
 
     // State 3 perception failure jumps directly into strategy-0 planning.
