@@ -99,6 +99,10 @@ public:
     {
         return cannonAttackEnabled_;
     }
+    void toggleCannonAttackEnabled()
+    {
+        cannonAttackEnabled_ = !cannonAttackEnabled_;
+    }
 
     unsigned activateActionSpotDancers();
     void restoreActionSpotDancers();
