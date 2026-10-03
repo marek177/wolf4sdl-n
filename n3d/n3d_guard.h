@@ -14,6 +14,7 @@ namespace n3d
 {
 
 class DoorRuntime;
+struct DoorController;
 
 struct PlayerHitReport
 {
