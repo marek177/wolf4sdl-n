@@ -1027,17 +1027,16 @@ PlayerHitReport GuardRuntime::fireHitscan(int32_t playerWorldX,
                           16, true))
             continue;
 
-        const uint32_t beforeScore = objects_->inventory().score;
         bool killed = false;
         applyPlayerWeaponHit(i, weaponId, difficultyCode,
                              viewportCenterY, &killed);
 
         ++report.hitCount;
         if(killed)
+        {
             ++report.killCount;
-
-        report.scoreDelta +=
-            static_cast<int32_t>(objects_->inventory().score - beforeScore);
+            report.scoreDelta += killScore(object.objectClass);
+        }
     }
 
     return report;
