@@ -121,6 +121,35 @@ PlayerDamageResult ObjectRuntime::applyEnemyDamage(uint8_t damage,
     return PlayerDamageLethal;
 }
 
+bool ObjectRuntime::consumeWeaponAmmo(uint8_t weaponId)
+{
+    if(inventory_.omnipotent)
+        return true;
+
+    uint8_t *ammo = 0;
+    switch(weaponId)
+    {
+        case 0:
+        case 3:
+            ammo = &inventory_.plasmaAmmo;
+            break;
+        case 1:
+            ammo = &inventory_.wandAmmo;
+            break;
+        case 2:
+            ammo = &inventory_.pistolAmmo;
+            break;
+        default:
+            return false;
+    }
+
+    if(*ammo == 0)
+        return false;
+
+    --(*ammo);
+    return true;
+}
+
 RuntimeObject *ObjectRuntime::findAt(int tileX, int tileY)
 {
     for(size_t i = 0; i < objects_.size(); ++i)
