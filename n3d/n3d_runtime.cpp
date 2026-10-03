@@ -4,6 +4,7 @@
 #include "n3d_door.h"
 #include "n3d_guard.h"
 #include "n3d_object.h"
+#include "n3d_projectile.h"
 #include "n3d_render_bridge.h"
 #include "n3d_world.h"
 
@@ -17,6 +18,7 @@ RenderMap g_renderMap;
 DoorRuntime g_doors;
 ObjectRuntime g_objects;
 GuardRuntime g_guards;
+ProjectileRuntime g_projectiles;
 bool g_active = false;
 uint8_t g_fallbackColumn[64] = {0};
 }
@@ -60,6 +62,8 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
         return false;
     }
 
+    g_projectiles.bind(&g_world, &g_objects, &g_doors, &g_guards);
+
     g_active = true;
     return true;
 }
@@ -73,6 +77,7 @@ void unloadRuntime()
     g_doors = DoorRuntime();
     g_objects = ObjectRuntime();
     g_guards = GuardRuntime();
+    g_projectiles = ProjectileRuntime();
 }
 
 bool runtimeActive()
@@ -123,6 +128,16 @@ GuardRuntime *runtimeGuards()
 const GuardRuntime *runtimeGuardsConst()
 {
     return g_active ? &g_guards : 0;
+}
+
+ProjectileRuntime *runtimeProjectiles()
+{
+    return g_active ? &g_projectiles : 0;
+}
+
+const ProjectileRuntime *runtimeProjectilesConst()
+{
+    return g_active ? &g_projectiles : 0;
 }
 
 bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out)
@@ -223,6 +238,29 @@ PlayerHitReport runtimeFireHitscan(int32_t playerWorldX,
     return g_guards.fireHitscan(playerWorldX, playerWorldY,
                                 weaponId, difficultyCode,
                                 viewportCenterY);
+}
+
+ProjectileFireResult runtimeFireProjectile(int32_t playerWorldX,
+                                           int32_t playerWorldY,
+                                           uint8_t weaponId,
+                                           int directionX,
+                                           int directionY)
+{
+    if(!g_active)
+        return ProjectileFireInvalidWeapon;
+
+    return g_projectiles.fire(playerWorldX, playerWorldY,
+                              weaponId, directionX, directionY);
+}
+
+ProjectileUpdateReport runtimeTickProjectiles(unsigned substeps,
+                                              int difficultyCode,
+                                              int viewportCenterY)
+{
+    if(!g_active)
+        return ProjectileUpdateReport();
+
+    return g_projectiles.tick(substeps, difficultyCode, viewportCenterY);
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
