@@ -538,8 +538,10 @@ int main()
                     "state 4 applies Skeleton medium damage 8")) return 1;
         if(!require(objects.inventory().damageFlash == 3,
                     "nonzero enemy hit sets damage feedback to 3")) return 1;
-        if(!require(g.state == 5,
-                    "surviving state-4 attack enters state 5")) return 1;
+        if(!require(g.state == 0 && g.nextState == 5,
+                    "surviving state-4 attack enters +38 timed token before state 5")) return 1;
+        if(!require(g.sequenceToken == (34u | (2u << 8)),
+                    "state-4 tail selects SEQDEF +38 token")) return 1;
     }
 
     // Difficulty direction is easy /2, medium x1, hard x2.
@@ -664,8 +666,8 @@ int main()
                     "Omnipotent suppresses death state")) return 1;
         if(!require(objects.inventory().damageFlash == 3,
                     "Omnipotent still observes nonzero damage feedback ordering")) return 1;
-        if(!require(g.state == 5,
-                    "suppressed state-4 attack continues to fallback state 5")) return 1;
+        if(!require(g.state == 0 && g.nextState == 5,
+                    "suppressed state-4 attack still schedules +38 token before state 5")) return 1;
     }
 
     // Current-generation Silver Pistol hitscan uses aim stamp + 16-cell LOS.
