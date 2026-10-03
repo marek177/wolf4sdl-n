@@ -258,10 +258,9 @@ void GuardRuntime::markProjectedObject(size_t objectIndex,
 
 uint32_t GuardRuntime::nextPreviewRandom()
 {
-    // Deterministic preview-only RNG. The recovered AI branch structure and
-    // ranges are original; exact original RNG parity is kept separate.
-    previewRng_ = previewRng_ * 1664525UL + 1013904223UL;
-    return previewRng_;
+    // Original DOS/Win16 32-bit LCG. Arithmetic intentionally wraps mod 2^32.
+    previewRng_ = previewRng_ * 0x343FDUL + 0x269EC3UL;
+    return (previewRng_ >> 16) & 0x7FFFUL;
 }
 
 bool GuardRuntime::traceGridLine(int startX, int startY,
