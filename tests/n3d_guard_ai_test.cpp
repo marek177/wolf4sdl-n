@@ -14,6 +14,92 @@
 namespace
 {
 
+void writeU16(std::vector<unsigned char> &bytes,
+              size_t offset,
+              unsigned value)
+{
+    bytes[offset] = static_cast<unsigned char>(value & 0xffu);
+    bytes[offset + 1] =
+        static_cast<unsigned char>((value >> 8) & 0xffu);
+}
+
+void writeU32(std::vector<unsigned char> &bytes,
+              size_t offset,
+              unsigned long value)
+{
+    bytes[offset] = static_cast<unsigned char>(value & 0xffUL);
+    bytes[offset + 1] =
+        static_cast<unsigned char>((value >> 8) & 0xffUL);
+    bytes[offset + 2] =
+        static_cast<unsigned char>((value >> 16) & 0xffUL);
+    bytes[offset + 3] =
+        static_cast<unsigned char>((value >> 24) & 0xffUL);
+}
+
+void appendTinyFrame(std::vector<unsigned char> &bytes,
+                     unsigned char color)
+{
+    bytes.push_back(1);
+    bytes.push_back(1);
+    for(int i = 0; i < 8; ++i)
+        bytes.push_back(0);
+    bytes.push_back(color);
+}
+
+bool writeSyntheticImg(const char *path)
+{
+    std::vector<unsigned char> bytes(n3d::ImgArchive::FrameDataOffset, 0);
+
+    const unsigned char id = 0x91;
+    const unsigned long stream =
+        static_cast<unsigned long>(bytes.size());
+    writeU32(bytes, 0x400u + static_cast<unsigned>(id) * 4u, stream);
+
+    const size_t seq =
+        static_cast<size_t>(n3d::ImgArchive::HighSequenceBankOffset) +
+        static_cast<size_t>(id) *
+        static_cast<size_t>(n3d::ImgArchive::SequenceRecordBytes);
+
+    writeU16(bytes, seq + 0, 100);
+    bytes[seq + 2] = 48;
+    bytes[seq + 3] = 1;
+
+    // Direction tables +04/+14/+24: packed low=start frame, high=count.
+    for(unsigned table = 0; table < 3; ++table)
+    {
+        for(unsigned dir = 0; dir < 8; ++dir)
+        {
+            const unsigned start = table * 12u + dir;
+            const unsigned token = start | (2u << 8);
+            writeU16(bytes, seq + 0x04u + table * 0x10u + dir * 2u,
+                     token);
+        }
+    }
+
+    // State 2/3/4 setup tokens.
+    writeU16(bytes, seq + 0x34, 30u | (2u << 8));
+    writeU16(bytes, seq + 0x36, 32u | (2u << 8));
+    writeU16(bytes, seq + 0x38, 34u | (2u << 8));
+
+    // Pain/death alternative banks. Keep every candidate enabled and equal so
+    // deterministic RNG choice cannot affect expected frame range.
+    for(unsigned i = 0; i < 7; ++i)
+    {
+        writeU16(bytes, seq + 0x3A + i * 2u, 36u | (2u << 8));
+        writeU16(bytes, seq + 0x4A + i * 2u, 40u | (2u << 8));
+    }
+
+    for(unsigned frame = 0; frame < 48; ++frame)
+        appendTinyFrame(bytes, static_cast<unsigned char>(0x20 + frame));
+
+    std::ofstream f(path, std::ios::binary);
+    if(!f)
+        return false;
+    f.write(reinterpret_cast<const char *>(&bytes[0]),
+            static_cast<std::streamsize>(bytes.size()));
+    return !!f;
+}
+
 bool writeSyntheticMap(const char *path)
 {
     const size_t size = n3d::MapArchive::HeaderSize + n3d::MapArchive::LevelBytes;
@@ -67,11 +153,18 @@ bool buildFixture(n3d::EpisodeData &episode,
                   int episodeNumber = 1)
 {
     const char *path = "n3d_guard_ai_test.map";
-    if(!writeSyntheticMap(path))
+    const char *imgPath = "n3d_guard_ai_test.img";
+    if(!writeSyntheticMap(path) || !writeSyntheticImg(imgPath))
         return false;
 
     std::string error;
     if(!episode.map.load(path, error))
+    {
+        std::cerr << error << "\n";
+        return false;
+    }
+
+    if(!episode.img.load(imgPath, error))
     {
         std::cerr << error << "\n";
         return false;
@@ -139,7 +232,13 @@ int main()
         if(!require(g.facing == 2, "spawn subtype 1 maps to east/facing 2")) return 1;
         if(!require(g.state == 8, "moving spawn promoted to state 8")) return 1;
 
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
         guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(g.sequenceToken == (19u | (2u << 8)),
+                    "state-8 directional table selects relative direction token")) return 1;
+        if(!require(o.animationFrame == 20,
+                    "successful movement advances inside selected directional token")) return 1;
 
         if(!require(g.losResult == 1, "clear east LOS detected")) return 1;
         if(!require(g.state == 2, "state 8 reacquires into state 2")) return 1;
@@ -349,6 +448,73 @@ int main()
         if(!require(g.losResult == 0, "state 3 stores failed LOS")) return 1;
         if(!require(g.state == 6, "state 3 failure enters strategy-0 state 6")) return 1;
         if(!require(g.timer == 0x18, "unseen strategy-0 timer is 0x18")) return 1;
+    }
+
+    // States 2/3/4 use the dedicated SEQDEF words at +34/+36/+38.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        g.state = 2;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0 && g.nextState == 3,
+                    "state 2 enters timed token state 0 -> 3")) return 1;
+        if(!require(g.sequenceToken == (30u | (2u << 8)) &&
+                    o.animationFrame == 30,
+                    "state 2 selects SEQDEF +34 token")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 3 && o.animationFrame == 31,
+                    "state-0 token advances frame then restores state 3")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0 && g.nextState == 4,
+                    "state 3 perception selects timed attack pre-sequence")) return 1;
+        if(!require(g.sequenceToken == (32u | (2u << 8)) &&
+                    o.animationFrame == 32,
+                    "state 3 selects SEQDEF +36 token")) return 1;
+    }
+
+    // Pain and lethal routes use the two seven-way alternate token banks.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        g.state = 7;
+        g.hp = 255;
+        o.lastProjectedY = 81;
+        bool killed = false;
+        guards.applyPlayerWeaponHit(0, 2, 1, 80, &killed);
+
+        if(!require(!killed && g.sequenceToken == (36u | (2u << 8)),
+                    "nonlethal pain chooses first alternate token bank")) return 1;
+        if(!require(g.state == 0 && g.nextState == 5 &&
+                    o.animationFrame == 36,
+                    "state-7 pain enters timed token state 0 -> 5")) return 1;
+
+        g.hp = 1;
+        o.lastProjectedY = 120;
+        guards.applyPlayerWeaponHit(0, 2, 1, 80, &killed);
+        if(!require(killed && g.sequenceToken == (40u | (2u << 8)),
+                    "lethal hit chooses second alternate death token bank")) return 1;
+        if(!require(o.animationFrame == 40,
+                    "lethal sequence begins at death token low byte")) return 1;
     }
 
     // State 4 applies class-specific contact damage and enters state 5.
@@ -675,6 +841,7 @@ int main()
     }
 
     std::remove("n3d_guard_ai_test.map");
+    std::remove("n3d_guard_ai_test.img");
     std::cout << "N3D GUARD AI core tests passed\n";
     return 0;
 }
