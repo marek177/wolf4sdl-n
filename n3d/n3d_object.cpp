@@ -8,9 +8,11 @@ namespace n3d
 
 RuntimeObject::RuntimeObject()
     : objectId(0), subtype(0), objectClass(0), renderObjectId(0),
+      animationAlternative(0), animationFrame(0), sequenceObjectId(0xff),
       properties(0), guardIndex(0xff),
       tileX(0), tileY(0), worldX(0), worldY(0),
-      lastProjectedY(0), verticalOffset(0), active(false)
+      lastProjectedY(0), verticalOffset(0),
+      animationDeadlineMs(0), active(false)
 {
 }
 
@@ -70,6 +72,9 @@ bool ObjectRuntime::build(WorldState &world,
             object.objectId = cell.objectId;
             object.objectClass = cell.objectClass;
             object.renderObjectId = cell.objectId;
+            object.animationAlternative = 0;
+            object.animationFrame = 0;
+            object.sequenceObjectId = cell.objectId;
             object.subtype = subtypeFor(cell.objectId, cell.objectClass);
             object.properties = properties;
             object.guardIndex = 0xff;
