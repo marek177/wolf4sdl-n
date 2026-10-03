@@ -76,6 +76,7 @@ public:
     void bindDoors(DoorRuntime *doors) { doors_ = doors; }
 
     const std::vector<RuntimeObject> &objects() const { return objects_; }
+    std::vector<RuntimeObject> &objects() { return objects_; }
     const InventoryState &inventory() const { return inventory_; }
 
     RuntimeObject *findAt(int tileX, int tileY);
