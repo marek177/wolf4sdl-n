@@ -1822,13 +1822,38 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
             }
 
             case 5:
-                if(guard.strategy == 0 ||
-                   (guard.strategy == 1 && guard.hp >= 0x7f))
+                if(guard.strategy == 1 && guard.hp < 0x7f)
+                {
+                    planStrategy1Flee(guard, object);
+                    refreshDirectionalSequence(guard, object,
+                                               playerWorldX, playerWorldY,
+                                               true);
+                    shouldMove = true;
+                }
+                else if(guard.strategy == 2)
+                {
+                    guard.timer =
+                        static_cast<uint16_t>(
+                            nextPreviewRandom() % 8u + 8u);
+                    guard.state = 6;
+                    guard.facing =
+                        facingFromVector(guard.moveX, guard.moveY,
+                                         guard.facing);
+                    refreshDirectionalSequence(guard, object,
+                                               playerWorldX, playerWorldY,
+                                               true);
+                    shouldMove = true;
+                }
+                else if(guard.strategy == 0 ||
+                        (guard.strategy == 1 && guard.hp >= 0x7f))
                 {
                     planStrategy0(guard, object,
                                   playerWorldX, playerWorldY,
                                   difficultyCode);
-                    shouldMove = true; // original planner moves immediately
+                    refreshDirectionalSequence(guard, object,
+                                               playerWorldX, playerWorldY,
+                                               true);
+                    shouldMove = true;
                 }
                 break;
 
@@ -1993,6 +2018,20 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
             case 0x13:
                 updateState13Displacement(guard, object,
                                           playerWorldX, playerWorldY);
+                break;
+
+            case 0x14:
+                if(guard.timer < 1)
+                {
+                    // AE56(1) restores every active Dancers-script guard as
+                    // one global operation, not only the caller.
+                    restoreActionSpotDancers();
+                    break;
+                }
+
+                --guard.timer;
+                if(guard.timer < 0x60)
+                    shouldMove = true;
                 break;
 
             case 0x15:
