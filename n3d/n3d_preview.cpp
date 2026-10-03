@@ -454,7 +454,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         if(static_cast<Sint32>(now - nextProjectile) >= 0)
         {
             const n3d::ProjectileUpdateReport projectile =
-                n3d::runtimeTickProjectiles(20, 1, 80);
+                n3d::runtimeTickProjectiles(now, 20, 1, 80);
             if(projectile.guardHits != 0 || projectile.impacts != 0)
             {
                 printf("PROJECTILES: impacts=%u guardHits=%u kills=%u active=%u\n",
