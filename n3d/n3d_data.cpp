@@ -138,6 +138,54 @@ bool MapArchive::load(const std::string &path, std::string &error)
     return true;
 }
 
+ImgSequenceDef::ImgSequenceDef()
+    : intervalMs(0), frameCount(0), extended(0)
+{
+    for(size_t i = 0; i < sizeof(raw); ++i)
+        raw[i] = 0;
+}
+
+uint16_t ImgSequenceDef::wordAt(unsigned offset) const
+{
+    if(offset + 1u >= sizeof(raw))
+        return 0;
+
+    return static_cast<uint16_t>(raw[offset]) |
+           static_cast<uint16_t>(
+               static_cast<uint16_t>(raw[offset + 1u]) << 8);
+}
+
+uint16_t ImgSequenceDef::directionalToken(unsigned table,
+                                          unsigned direction) const
+{
+    if(table >= 3u || direction >= 8u)
+        return 0;
+
+    return wordAt(0x04u + table * 0x10u + direction * 2u);
+}
+
+uint16_t ImgSequenceDef::stateToken(unsigned stateIndex) const
+{
+    if(stateIndex >= 3u)
+        return 0;
+
+    return wordAt(0x34u + stateIndex * 2u);
+}
+
+uint16_t ImgSequenceDef::alternativeToken(bool secondTable,
+                                          unsigned index) const
+{
+    if(index >= 7u)
+        return 0;
+
+    return wordAt((secondTable ? 0x4Au : 0x3Au) + index * 2u);
+}
+
+uint8_t ImgSequenceDef::shortcutFlag(bool secondTable) const
+{
+    return raw[secondTable ? 0x59 : 0x49];
+}
+
 ImgFrame::ImgFrame() : fileOffset(0), width(0), height(0)
 {
     for(size_t i = 0; i < sizeof(metadata); ++i)
@@ -212,10 +260,14 @@ bool ImgArchive::load(const std::string &path, std::string &error)
         wallSequences_[i].intervalMs = readU16LE(bytes, low);
         wallSequences_[i].frameCount = bytes[low + 2];
         wallSequences_[i].extended = bytes[low + 3];
+        for(size_t j = 0; j < SequenceRecordBytes; ++j)
+            wallSequences_[i].raw[j] = bytes[low + j];
 
         objectSequences_[i].intervalMs = readU16LE(bytes, high);
         objectSequences_[i].frameCount = bytes[high + 2];
         objectSequences_[i].extended = bytes[high + 3];
+        for(size_t j = 0; j < SequenceRecordBytes; ++j)
+            objectSequences_[i].raw[j] = bytes[high + j];
     }
 
     size_t pos = static_cast<size_t>(firstDataOffset_);
