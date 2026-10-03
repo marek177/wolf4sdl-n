@@ -631,6 +631,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
             continue;
 
         bool shouldMove = false;
+        bool state8Reacquire = false;
 
         switch(guard.state)
         {
@@ -703,7 +704,10 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
 
             case 8:
                 // Original ordering: centered TURN/RETREAT marker first,
-                // movement second, perception/reacquire afterwards.
+                // movement second, perception/reacquire afterwards. The
+                // handler continues this tail even if the marker changed
+                // the current state byte.
+                state8Reacquire = true;
                 applyNavigationMarker(guard, object);
                 shouldMove = true;
                 break;
@@ -744,7 +748,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
             }
         }
 
-        if(guard.state == 8 && guard.nextState == 2)
+        if(state8Reacquire && guard.nextState == 2)
         {
             if(updatePerception(guard, object,
                                 playerWorldX, playerWorldY,
