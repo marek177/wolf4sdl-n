@@ -15,6 +15,15 @@ namespace n3d
 
 class DoorRuntime;
 
+struct PlayerHitReport
+{
+    unsigned hitCount;
+    unsigned killCount;
+    int32_t scoreDelta;
+
+    PlayerHitReport() : hitCount(0), killCount(0), scoreDelta(0) {}
+};
+
 struct GuardRuntimeRecord
 {
     uint32_t renderStamp;
@@ -53,10 +62,27 @@ public:
     const std::vector<GuardRuntimeRecord> &guards() const { return guards_; }
     std::vector<GuardRuntimeRecord> &guards() { return guards_; }
 
-    // Preview implementation of the statically recovered perception and
-    // strategy-0 state flow. Attack execution remains a separate layer.
     void tickPreviewAI(int32_t playerWorldX, int32_t playerWorldY,
                        int difficultyCode);
+
+    uint32_t beginRenderGeneration();
+    void markProjectedObject(size_t objectIndex,
+                             int projectedBaselineY,
+                             int spriteLeft,
+                             int spriteRight,
+                             int centerX);
+
+    PlayerHitReport fireHitscan(int32_t playerWorldX,
+                                int32_t playerWorldY,
+                                uint8_t weaponId,
+                                int difficultyCode,
+                                int viewportCenterY);
+
+    uint8_t applyPlayerWeaponHit(size_t guardIndex,
+                                 uint8_t weaponId,
+                                 int difficultyCode,
+                                 int viewportCenterY,
+                                 bool *killed);
 
 private:
     struct InitialProfile
@@ -101,6 +127,18 @@ private:
                                  int32_t playerWorldX,
                                  int32_t playerWorldY,
                                  int difficultyCode);
+    uint8_t computeWeaponDamage(const RuntimeObject &object,
+                                uint8_t weaponId,
+                                int difficultyCode,
+                                int viewportCenterY);
+    int32_t killScore(uint8_t objectClass) const;
+    void enterPainState(GuardRuntimeRecord &guard,
+                        RuntimeObject &object);
+    void beginDeath(GuardRuntimeRecord &guard,
+                    RuntimeObject &object);
+    void finalizeDeath(GuardRuntimeRecord &guard,
+                       RuntimeObject &object);
+    int firstObjectIdForClass(uint8_t objectClass) const;
     PlayerDamageResult attackPlayer(GuardRuntimeRecord &guard,
                                     const RuntimeObject &object,
                                     int32_t playerWorldX,
@@ -126,6 +164,7 @@ private:
     uint32_t previewRng_;
     int episode_;
     bool hamersteinOverride_;
+    uint32_t renderGeneration_;
 };
 
 } // namespace n3d
