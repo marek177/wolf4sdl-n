@@ -20,7 +20,8 @@ InventoryState::InventoryState()
       pistolAmmo(0), plasmaAmmo(0), wandAmmo(0),
       crystalBall(0), magicEye(0), meter(0), bonusCounter(0),
       activeWeapon(0xff), pendingWeapon(0xff), weaponSelectionMode(0),
-      lastScrollSubtype(0xff), damageFlash(0), gameState(0),
+      fireCadenceCounter(0), lastScrollSubtype(0xff),
+      damageFlash(0), gameState(0),
       deathAttackerObjectIndex(0xffff), omnipotent(false),
       deathTransitionPending(false), endingRequested(false), score(0)
 {
@@ -148,6 +149,38 @@ bool ObjectRuntime::consumeWeaponAmmo(uint8_t weaponId)
 
     --(*ammo);
     return true;
+}
+
+void ObjectRuntime::tickWeaponCadence()
+{
+    if(inventory_.fireCadenceCounter != 0xff)
+        ++inventory_.fireCadenceCounter;
+}
+
+bool ObjectRuntime::acceptFireAttempt(bool previousFireWasUp)
+{
+    static const uint8_t thresholds[4] = {2, 1, 3, 1};
+
+    const uint8_t weapon = inventory_.activeWeapon;
+    if(weapon >= 4)
+        return false;
+
+    if(inventory_.fireCadenceCounter < thresholds[weapon])
+        return false;
+
+    bool accepted = previousFireWasUp;
+    if(weapon == 3)
+        accepted = true;
+
+    if(accepted)
+    {
+        // Original AA90 resets cooldown before the shot dispatcher. Ammo,
+        // jam, or full projectile pool may still reject the actual shot.
+        inventory_.fireCadenceCounter = 0;
+        return true;
+    }
+
+    return false;
 }
 
 RuntimeObject *ObjectRuntime::findAt(int tileX, int tileY)
