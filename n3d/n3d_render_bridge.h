@@ -72,6 +72,9 @@ public:
     explicit WallTextureBridge(const ImgArchive &img) : img_(img) {}
 
     bool texture(uint8_t wallId, WallTextureView &out) const;
+    bool sequenceTexture(uint8_t wallId,
+                         unsigned frameIndex,
+                         WallTextureView &out) const;
 
     // Wolf4SDL uses 16.16 tile coordinates where one tile is 65536 units.
     // Nitemare3D wall sampling is 64 texels per tile vertically; wall images
