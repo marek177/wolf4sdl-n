@@ -98,6 +98,7 @@
     <ClCompile Include="n3d\\n3d_collision.cpp" />
     <ClCompile Include="n3d\\n3d_data.cpp" />
     <ClCompile Include="n3d\\n3d_door.cpp" />
+    <ClCompile Include="n3d\\n3d_guard.cpp" />
     <ClCompile Include="n3d\\n3d_main.cpp" />
     <ClCompile Include="n3d\\n3d_object.cpp" />
     <ClCompile Include="n3d\\n3d_preview.cpp" />
@@ -162,6 +163,7 @@
     <ClInclude Include="n3d\\n3d_collision.h" />
     <ClInclude Include="n3d\\n3d_data.h" />
     <ClInclude Include="n3d\\n3d_door.h" />
+    <ClInclude Include="n3d\\n3d_guard.h" />
     <ClInclude Include="n3d\\n3d_main.h" />
     <ClInclude Include="n3d\\n3d_object.h" />
     <ClInclude Include="n3d\\n3d_preview.h" />
