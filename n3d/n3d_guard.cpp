@@ -1401,6 +1401,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
         switch(guard.state)
         {
             case 0:
+                advanceTokenFrame(guard, object, true);
                 if(guard.timer > 0)
                     --guard.timer;
                 if(guard.timer == 0)
@@ -1415,17 +1416,31 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 2:
-                // Sequence setup/sound are presentation layers. The recovered
-                // state transition itself enters perception state 3.
-                guard.state = 3;
+            {
+                const ImgSequenceDef *sequence = objectSequence(object);
+                const uint16_t token =
+                    sequence ? sequence->stateToken(0) : 0;
+                if(token != 0)
+                    setSequenceToken(guard, object, token, 0, 3);
+                else
+                    guard.state = 3;
                 break;
+            }
 
             case 3:
                 if(updatePerception(guard, object,
                                     playerWorldX, playerWorldY,
                                     false, true))
                 {
-                    guard.state = 4; // attack-ready; attack execution pending
+                    const ImgSequenceDef *sequence =
+                        objectSequence(object);
+                    const uint16_t token =
+                        sequence ? sequence->stateToken(1) : 0;
+                    if(token != 0)
+                        setSequenceToken(guard, object,
+                                         token, 0, 4);
+                    else
+                        guard.state = 4;
                 }
                 else if(guard.strategy == 0 ||
                         (guard.strategy == 1 && guard.hp >= 0x7f))
@@ -1461,7 +1476,15 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 if(objects_->inventory().gameState == 2)
                     break;
 
-                guard.state = 5;
+                const ImgSequenceDef *sequence =
+                    objectSequence(object);
+                const uint16_t token =
+                    sequence ? sequence->stateToken(2) : 0;
+                if(token != 0)
+                    setSequenceToken(guard, object,
+                                     token, 0, 5);
+                else
+                    guard.state = 5;
                 break;
             }
 
@@ -1477,6 +1500,9 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 6:
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
                 shouldMove = true;
                 if(guard.timer > 0)
                     --guard.timer;
@@ -1485,6 +1511,9 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 7:
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
                 // Reacquire state: no ordinary movement in the recovered
                 // dispatcher. Strategy-3 state-13 branch is deferred.
                 if(guard.strategy != 3 &&
@@ -1509,6 +1538,8 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 0x12:
+                advanceTokenFrame(guard, object, false);
+
                 if(object.verticalOffset >= 5)
                     object.verticalOffset =
                         static_cast<uint8_t>(object.verticalOffset - 5);
@@ -1523,9 +1554,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 0x15:
-                if(guard.timer > 0)
-                    --guard.timer;
-                if(guard.timer == 0)
+                if(advanceTokenFrame(guard, object, false))
                     guard.state = guard.nextState;
                 break;
 
@@ -1562,12 +1591,18 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                     facingFromVector(actualDx, actualDy, guard.facing);
                 commitObjectPosition(i, object.worldX, object.worldY,
                                      newX, newY);
+                advanceTokenFrame(guard, object, true);
             }
         }
 
-        if(state8Reacquire && guard.nextState == 2)
+        if(state8Reacquire)
         {
-            if(updatePerception(guard, object,
+            refreshDirectionalSequence(guard, object,
+                                       playerWorldX, playerWorldY,
+                                       false);
+
+            if(guard.nextState == 2 &&
+               updatePerception(guard, object,
                                 playerWorldX, playerWorldY,
                                 false, true))
                 guard.state = 2;
