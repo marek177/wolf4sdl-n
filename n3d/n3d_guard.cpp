@@ -934,15 +934,30 @@ void GuardRuntime::finalizeDeath(GuardRuntimeRecord &guard,
             guard.perceptionMode = 0;
             guard.directionCache = 8;
             setMovementFromFacing(guard);
+
+            // Fatal handling restored the saved underlying MAP byte before
+            // state 9. Dracula's transform explicitly re-links the live actor.
+            if(world_ &&
+               object.tileX >= 0 && object.tileY >= 0 &&
+               object.tileX < WorldState::Width &&
+               object.tileY < WorldState::Height)
+            {
+                WorldCell &cell =
+                    world_->at(static_cast<size_t>(object.tileX),
+                               static_cast<size_t>(object.tileY));
+                cell.objectId = object.objectId;
+                cell.objectClass = object.objectClass;
+            }
             return;
         }
 
         case 0x16:
-            // Hamerstein's original path sets the high-level ending request.
+            // Hamerstein's original path resets the ordinary game state and
+            // raises a separate high-level ending transition request.
             if(objects_)
             {
                 objects_->inventory().gameState = 0;
-                objects_->inventory().deathTransitionPending = false;
+                objects_->inventory().endingRequested = true;
             }
             return;
     }
