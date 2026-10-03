@@ -27,6 +27,7 @@ struct PlayerHitReport
 struct GuardRuntimeRecord
 {
     uint32_t renderStamp;
+    uint16_t sequenceToken;
     uint16_t timer;
     uint16_t objectIndex;
     uint8_t strategy;
@@ -54,6 +55,7 @@ public:
 
     bool build(WorldState &world,
                const MapArchive &map,
+               const ImgArchive &img,
                ObjectRuntime &objects,
                DoorRuntime *doors,
                int episode,
@@ -95,6 +97,27 @@ private:
 
     InitialProfile initialProfile(uint8_t objectClass) const;
     void setMovementFromFacing(GuardRuntimeRecord &guard);
+    uint8_t computeDirectionToPlayer(bool wide,
+                                     const RuntimeObject &object,
+                                     int32_t playerWorldX,
+                                     int32_t playerWorldY) const;
+    void refreshDirectionalSequence(GuardRuntimeRecord &guard,
+                                    RuntimeObject &object,
+                                    int32_t playerWorldX,
+                                    int32_t playerWorldY,
+                                    bool force);
+    const ImgSequenceDef *objectSequence(
+        const RuntimeObject &object) const;
+    void setSequenceToken(GuardRuntimeRecord &guard,
+                          RuntimeObject &object,
+                          uint16_t token,
+                          uint8_t currentState,
+                          uint8_t nextState);
+    bool advanceTokenFrame(GuardRuntimeRecord &guard,
+                           RuntimeObject &object,
+                           bool loop);
+    uint16_t chooseAlternativeToken(const RuntimeObject &object,
+                                    bool secondTable);
     void updateRenderFacing(RuntimeObject &object,
                             const GuardRuntimeRecord &guard);
     bool testLineOfSight(const GuardRuntimeRecord &guard,
@@ -158,6 +181,7 @@ private:
 
     WorldState *world_;
     const MapArchive *map_;
+    const ImgArchive *img_;
     ObjectRuntime *objects_;
     DoorRuntime *doors_;
     std::vector<GuardRuntimeRecord> guards_;
