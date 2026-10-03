@@ -382,6 +382,8 @@ void HitVertWall (void)
         postwidth = 1;
         postsource = const_cast<byte *>(
             n3d::runtimeWallColumn(static_cast<uint8_t>(tilehit),
+                                   xtile,
+                                   ytile,
                                    textureCoordinate,
                                    reverse,
                                    &textureU,
@@ -476,6 +478,8 @@ void HitHorizWall (void)
         postwidth = 1;
         postsource = const_cast<byte *>(
             n3d::runtimeWallColumn(static_cast<uint8_t>(tilehit),
+                                   xtile,
+                                   ytile,
                                    textureCoordinate,
                                    reverse,
                                    &textureU,
