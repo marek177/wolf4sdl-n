@@ -7,7 +7,7 @@ namespace n3d
 DoorController::DoorController()
     : x(0), y(0), wallId(0), wallClass(0),
       state(DoorClosed), timer(0), motion(0), latch(false),
-      credentialSelector(0xff)
+      credentialSelector(0xff), remoteGroup(0xff)
 {
 }
 
@@ -34,6 +34,7 @@ bool DoorRuntime::build(const WorldState &world, const MapArchive &map, std::str
     controllers_.clear();
     keyMask_ = 0;
     idCardMask_ = 0;
+    remoteGroupMask_ = 0;
 
     for(int y = 0; y < WorldState::Height; ++y)
     {
@@ -62,6 +63,28 @@ bool DoorRuntime::build(const WorldState &world, const MapArchive &map, std::str
             door.timer = 0;
             door.motion = 0;
             door.latch = false;
+
+            if(door.wallClass == 0x3B || door.wallClass == 0x3C)
+            {
+                int firstId = -1;
+                for(int id = 0; id < 256; ++id)
+                {
+                    if(map.wallClass(static_cast<uint8_t>(id)) == door.wallClass)
+                    {
+                        firstId = id;
+                        break;
+                    }
+                }
+
+                if(firstId >= 0 && door.wallId >= firstId)
+                {
+                    const unsigned delta =
+                        static_cast<unsigned>(door.wallId - firstId);
+                    const unsigned group = delta / 2u;
+                    if(group < 8u)
+                        door.remoteGroup = static_cast<uint8_t>(group);
+                }
+            }
 
             if((door.wallClass >= 0x33 && door.wallClass <= 0x3A))
             {
@@ -184,6 +207,55 @@ void DoorRuntime::grantIdCard(unsigned selector)
 {
     if(selector < 8u)
         idCardMask_ = static_cast<uint8_t>(idCardMask_ | (1u << selector));
+}
+
+
+unsigned DoorRuntime::applyRemoteGroup(unsigned group, bool open)
+{
+    if(group >= 8u)
+        return 0;
+
+    unsigned changed = 0;
+
+    for(size_t i = 0; i < controllers_.size(); ++i)
+    {
+        DoorController &door = controllers_[i];
+
+        if((door.wallClass != 0x3B && door.wallClass != 0x3C) ||
+           door.remoteGroup != group)
+            continue;
+
+        if(open)
+        {
+            if(door.state == DoorClosed ||
+               door.state == DoorClosing)
+            {
+                door.state = DoorOpening;
+                door.latch = true;
+                propagateState(door);
+                ++changed;
+            }
+        }
+        else
+        {
+            if(door.state == DoorOpen ||
+               door.state == DoorOpening)
+            {
+                door.state = DoorClosing;
+                door.latch = true;
+                propagateState(door);
+                ++changed;
+            }
+        }
+    }
+
+    // The original command toggles the selected DAT_51A4 group bit even when
+    // no physical door record changed.
+    remoteGroupMask_ =
+        static_cast<uint8_t>(
+            remoteGroupMask_ ^ static_cast<uint8_t>(1u << group));
+
+    return changed;
 }
 
 void DoorRuntime::propagateState(DoorController &source)
