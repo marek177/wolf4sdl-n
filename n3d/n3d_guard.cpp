@@ -566,9 +566,23 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 if(updatePerception(guard, object,
                                     playerWorldX, playerWorldY,
                                     false, true))
+                {
                     guard.state = 4; // attack-ready; attack execution pending
+                }
+                else if(guard.strategy == 0 ||
+                        (guard.strategy == 1 && guard.hp >= 0x7f))
+                {
+                    // The recovered dispatcher jumps directly into the
+                    // fallback planner on state-3 perception failure.
+                    planStrategy0(guard, object,
+                                  playerWorldX, playerWorldY,
+                                  difficultyCode);
+                    shouldMove = true;
+                }
                 else
+                {
                     guard.state = 5;
+                }
                 break;
 
             case 4:
