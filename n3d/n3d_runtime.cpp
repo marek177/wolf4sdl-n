@@ -192,6 +192,39 @@ void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
         g_guards.tickPreviewAI(playerWorldX, playerWorldY, difficultyCode);
 }
 
+uint32_t runtimeBeginRenderGeneration()
+{
+    return g_active ? g_guards.beginRenderGeneration() : 0;
+}
+
+void runtimeMarkProjectedObject(size_t objectIndex,
+                                int projectedBaselineY,
+                                int spriteLeft,
+                                int spriteRight,
+                                int centerX)
+{
+    if(g_active)
+        g_guards.markProjectedObject(objectIndex,
+                                     projectedBaselineY,
+                                     spriteLeft,
+                                     spriteRight,
+                                     centerX);
+}
+
+PlayerHitReport runtimeFireHitscan(int32_t playerWorldX,
+                                   int32_t playerWorldY,
+                                   uint8_t weaponId,
+                                   int difficultyCode,
+                                   int viewportCenterY)
+{
+    if(!g_active)
+        return PlayerHitReport();
+
+    return g_guards.fireHitscan(playerWorldX, playerWorldY,
+                                weaponId, difficultyCode,
+                                viewportCenterY);
+}
+
 const uint8_t *runtimeWallColumn(uint8_t wallId,
                                  int32_t alongWallFixed,
                                  bool reverse,
