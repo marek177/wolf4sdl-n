@@ -116,7 +116,8 @@ private:
     bool advanceTokenFrame(GuardRuntimeRecord &guard,
                            RuntimeObject &object,
                            bool loop);
-    uint16_t chooseAlternativeToken(const RuntimeObject &object,
+    uint16_t chooseAlternativeToken(const GuardRuntimeRecord &guard,
+                                    const RuntimeObject &object,
                                     bool secondTable);
     void updateRenderFacing(RuntimeObject &object,
                             const GuardRuntimeRecord &guard);
