@@ -46,6 +46,15 @@ private:
     std::vector<LevelMap> levels_;
 };
 
+struct ImgSequenceDef
+{
+    uint16_t intervalMs;
+    uint8_t frameCount;
+    uint8_t extended;
+
+    ImgSequenceDef() : intervalMs(0), frameCount(0), extended(0) {}
+};
+
 struct ImgFrame
 {
     uint32_t fileOffset;
@@ -60,7 +69,15 @@ struct ImgFrame
 class ImgArchive
 {
 public:
-    enum { ImageIndexEntries = 256, ImageIndexRegionEnd = 0x800 };
+    enum
+    {
+        ImageIndexEntries = 256,
+        ImageIndexRegionEnd = 0x800,
+        SequenceRecordBytes = 90,
+        LowSequenceBankOffset = 0x0800,
+        HighSequenceBankOffset = 0x6200,
+        FrameDataOffset = 0xBC00
+    };
 
     ImgArchive();
     bool load(const std::string &path, std::string &error);
@@ -69,8 +86,16 @@ public:
     uint32_t firstDataOffset() const { return firstDataOffset_; }
     const std::vector<uint32_t> &wallSlotOffsets() const { return wallSlotOffsets_; }
     const std::vector<uint32_t> &objectSlotOffsets() const { return objectSlotOffsets_; }
+    const std::vector<ImgSequenceDef> &wallSequences() const { return wallSequences_; }
+    const std::vector<ImgSequenceDef> &objectSequences() const { return objectSequences_; }
     const std::vector<ImgFrame> &frames() const { return frames_; }
+
+    const ImgSequenceDef *wallSequence(uint8_t id) const;
+    const ImgSequenceDef *objectSequence(uint8_t id) const;
+
     const ImgFrame *frameAtExactOffset(uint32_t offset) const;
+    const ImgFrame *wallSequenceFrame(uint8_t wallId, unsigned frameIndex) const;
+    const ImgFrame *objectSequenceFrame(uint8_t objectId, unsigned frameIndex) const;
 
     size_t nonZeroWallSlots() const;
     size_t nonZeroObjectSlots() const;
@@ -84,6 +109,8 @@ private:
     uint32_t firstDataOffset_;
     std::vector<uint32_t> wallSlotOffsets_;
     std::vector<uint32_t> objectSlotOffsets_;
+    std::vector<ImgSequenceDef> wallSequences_;
+    std::vector<ImgSequenceDef> objectSequences_;
     std::vector<ImgFrame> frames_;
 };
 
