@@ -7,10 +7,12 @@ on:
   pull_request:
     paths:
       - "n3d/**"
+      - "wl_draw.cpp"
+      - "wl_main.cpp"
       - ".github/workflows/n3d-core.yml"
 
 jobs:
-  compile:
+  core-compile:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,3 +24,14 @@ jobs:
             obj="build/n3d-core/$(basename "${src%.cpp}").o"
             g++ -std=c++98 -Wall -Wextra -Werror -pedantic -I. -In3d -c "$src" -o "$obj"
           done
+
+  wolf4sdl-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL 1.2 development packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl1.2-dev libsdl-mixer1.2-dev
+      - name: Build Wolf4SDL with Nitemare3D integration
+        run: make -j2 NO_DEPS=1
