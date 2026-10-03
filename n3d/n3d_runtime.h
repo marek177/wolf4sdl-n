@@ -39,7 +39,8 @@ bool runtimeObjectOccupiedQuery(int tileX, int tileY, void *userData);
 DoorUseResult runtimeUseDoor(int tileX, int tileY, int playerSector);
 void runtimeTickDoorMotion();
 void runtimeTickDoorAutoClose(int playerTileX, int playerTileY);
-void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY);
+void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
+                       int difficultyCode);
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
                                  int32_t alongWallFixed,
