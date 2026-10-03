@@ -23,6 +23,76 @@ bool require(bool condition, const char *message)
     return false;
 }
 
+void writeU16(std::vector<unsigned char> &bytes,
+              size_t offset,
+              unsigned value)
+{
+    bytes[offset] = static_cast<unsigned char>(value & 0xffu);
+    bytes[offset + 1] =
+        static_cast<unsigned char>((value >> 8) & 0xffu);
+}
+
+void writeU32(std::vector<unsigned char> &bytes,
+              size_t offset,
+              unsigned long value)
+{
+    bytes[offset] = static_cast<unsigned char>(value & 0xffUL);
+    bytes[offset + 1] =
+        static_cast<unsigned char>((value >> 8) & 0xffUL);
+    bytes[offset + 2] =
+        static_cast<unsigned char>((value >> 16) & 0xffUL);
+    bytes[offset + 3] =
+        static_cast<unsigned char>((value >> 24) & 0xffUL);
+}
+
+void appendTinyFrame(std::vector<unsigned char> &bytes,
+                     unsigned char color)
+{
+    bytes.push_back(1); // width
+    bytes.push_back(1); // height
+    for(int i = 0; i < 8; ++i)
+        bytes.push_back(0);
+    bytes.push_back(color);
+}
+
+bool writeSyntheticImg(const char *path)
+{
+    std::vector<unsigned char> bytes(n3d::ImgArchive::FrameDataOffset, 0);
+
+    const unsigned char ids[4] = {0xFB, 0xFC, 0xFD, 0xFE};
+    const unsigned short intervals[4] = {50, 100, 50, 100};
+    const unsigned char counts[4] = {2, 3, 2, 2};
+
+    for(int s = 0; s < 4; ++s)
+    {
+        const unsigned char id = ids[s];
+        const unsigned long stream =
+            static_cast<unsigned long>(bytes.size());
+
+        writeU32(bytes, 0x400u + static_cast<unsigned>(id) * 4u,
+                 stream);
+
+        const size_t seq =
+            static_cast<size_t>(n3d::ImgArchive::HighSequenceBankOffset) +
+            static_cast<size_t>(id) *
+            static_cast<size_t>(n3d::ImgArchive::SequenceRecordBytes);
+        writeU16(bytes, seq, intervals[s]);
+        bytes[seq + 2] = counts[s];
+        bytes[seq + 3] = 0;
+
+        for(unsigned f = 0; f < counts[s]; ++f)
+            appendTinyFrame(bytes,
+                            static_cast<unsigned char>(0x30 + s * 4 + f));
+    }
+
+    std::ofstream f(path, std::ios::binary);
+    if(!f)
+        return false;
+    f.write(reinterpret_cast<const char *>(&bytes[0]),
+            static_cast<std::streamsize>(bytes.size()));
+    return !!f;
+}
+
 bool writeSyntheticMap(const char *path)
 {
     const size_t size =
@@ -39,6 +109,9 @@ bool writeSyntheticMap(const char *path)
 
     for(int id = 0x90; id <= 0x93; ++id)
         bytes[0x102 + id] = 0x0B; // Skeleton GUARD
+
+    for(int id = 0xFB; id <= 0xFE; ++id)
+        bytes[0x102 + id] = 0x05; // MISSILE flight/impact family
 
     const size_t base = n3d::MapArchive::HeaderSize;
 
@@ -69,11 +142,18 @@ struct Fixture
 bool buildFixture(Fixture &f)
 {
     const char *path = "n3d_projectile_test.map";
-    if(!writeSyntheticMap(path))
+    const char *imgPath = "n3d_projectile_test.img";
+    if(!writeSyntheticMap(path) || !writeSyntheticImg(imgPath))
         return false;
 
     std::string error;
     if(!f.episode.map.load(path, error))
+    {
+        std::cerr << error << "\n";
+        return false;
+    }
+
+    if(!f.episode.img.load(imgPath, error))
     {
         std::cerr << error << "\n";
         return false;
@@ -108,7 +188,8 @@ bool buildFixture(Fixture &f)
         return false;
     }
 
-    f.projectiles.bind(&f.world, &f.objects, &f.doors, &f.guards);
+    f.projectiles.bind(&f.world, &f.objects, &f.doors, &f.guards,
+                       &f.episode.map, &f.episode.img);
     return true;
 }
 
@@ -228,11 +309,11 @@ int main()
         f.projectiles.fire(startX, startY, 0, 16384, 0);
 
         const int32_t before = f.projectiles.slot(0).worldX;
-        f.projectiles.tick(20, 1, 80);
+        f.projectiles.tick(40, 20, 1, 80);
         if(!require(f.projectiles.slot(0).worldX == before,
                     "new projectile does not move in allocator frame")) return 1;
 
-        f.projectiles.tick(20, 1, 80);
+        f.projectiles.tick(40, 20, 1, 80);
         if(!require(f.projectiles.slot(0).worldX == before + 20,
                     "east projectile advances one world unit per substep")) return 1;
         if(!require(f.projectiles.slot(0).verticalOffset == 6,
@@ -251,12 +332,13 @@ int main()
         f.objects.inventory().activeWeapon = 0;
         f.projectiles.fire(startX, startY, 0, 16384, 0);
 
-        f.projectiles.tick(20, 1, 80); // pending first update
+        f.projectiles.tick(40, 20, 1, 80); // pending first update
         n3d::ProjectileUpdateReport total;
         for(int i = 0; i < 4; ++i)
         {
             const n3d::ProjectileUpdateReport r =
-                f.projectiles.tick(20, 1, 80);
+                f.projectiles.tick(static_cast<uint32_t>(80 + i * 40),
+                                   20, 1, 80);
             total.impacts += r.impacts;
             total.guardHits += r.guardHits;
             total.guardKills += r.guardKills;
@@ -296,13 +378,14 @@ int main()
         // selector when the projectile actually hits.
         f.objects.inventory().activeWeapon = 1;
 
-        f.projectiles.tick(20, 1, 80); // pending first update
+        f.projectiles.tick(40, 20, 1, 80); // pending first update
 
         n3d::ProjectileUpdateReport total;
         for(int i = 0; i < 4; ++i)
         {
             const n3d::ProjectileUpdateReport r =
-                f.projectiles.tick(20, 1, 80);
+                f.projectiles.tick(static_cast<uint32_t>(80 + i * 40),
+                                   20, 1, 80);
             total.impacts += r.impacts;
             total.guardHits += r.guardHits;
             total.guardKills += r.guardKills;
@@ -317,6 +400,7 @@ int main()
     }
 
     std::remove("n3d_projectile_test.map");
+    std::remove("n3d_projectile_test.img");
     std::cout << "N3D projectile core tests passed\n";
     return 0;
 }
