@@ -120,7 +120,11 @@ void runtimeObjectTouchQuery(int tileX, int tileY,
     (void)objectClass;
     (void)userData;
     if(g_active)
-        g_objects.touch(tileX, tileY);
+    {
+        const PickupResult result = g_objects.touch(tileX, tileY);
+        if(result == PickupAccepted)
+            g_objects.clampHudState();
+    }
 }
 
 bool runtimeObjectOccupiedQuery(int tileX, int tileY, void *userData)
