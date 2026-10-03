@@ -187,12 +187,13 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
     printf("Nitemare3D Wolf4SDL preview: E%dM%d\n", episode, level);
     printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, E/Space use, Esc quit\n");
     printf("Collision: recovered 27/28-unit probes; door states 0/4 pass, states 1/2/3 block\n");
-    printf("GUARD preview: recovered LOS/proximity, states 2/3/5/6/7/8 and strategy-0 chase; attack execution pending\n");
+    printf("GUARD preview: recovered LOS/proximity, strategy-0 chase and state-4 direct player damage\n");
 
     Uint32 nextDoorMotion = SDL_GetTicks() + 39;
     Uint32 nextDoorSlow = SDL_GetTicks() + 122;
 
     bool running = true;
+    bool deathReported = false;
     while(running)
     {
         SDL_Event event;
@@ -204,7 +205,9 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                 running = false;
             else if(event.type == SDL_KEYDOWN &&
                     (event.key.keysym.sym == SDLK_e ||
-                     event.key.keysym.sym == SDLK_SPACE))
+                     event.key.keysym.sym == SDLK_SPACE) &&
+                    (!n3d::runtimeObjectsConst() ||
+                     n3d::runtimeObjectsConst()->inventory().gameState != 2))
             {
                 int useX, useY;
                 FrontCell(player, useX, useY);
@@ -216,13 +219,17 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         }
 
         const Uint8 *keys = SDL_GetKeyState(0);
-        if(keys[SDLK_LEFT])
+        const n3d::ObjectRuntime *playerRuntime = n3d::runtimeObjectsConst();
+        const bool playerAlive =
+            !playerRuntime || playerRuntime->inventory().gameState != 2;
+
+        if(playerAlive && keys[SDLK_LEFT])
         {
             player->angle += 2;
             if(player->angle >= ANGLES)
                 player->angle -= ANGLES;
         }
-        if(keys[SDLK_RIGHT])
+        if(playerAlive && keys[SDLK_RIGHT])
         {
             player->angle -= 2;
             if(player->angle < 0)
@@ -269,7 +276,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                 (static_cast<int32_t>(sintable[strafeAngle]) * moveSpeed) >> 16);
         }
 
-        if(desiredX != 0 || desiredY != 0)
+        if(playerAlive && (desiredX != 0 || desiredY != 0))
         {
             const n3d::ObjectRuntime *objectsBefore = n3d::runtimeObjectsConst();
             const uint8_t oldKeyMask =
@@ -341,7 +348,31 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         if(static_cast<Sint32>(now - nextDoorSlow) >= 0)
         {
             n3d::runtimeTickDoorAutoClose(player->tilex, player->tiley);
+
+            const n3d::ObjectRuntime *beforeCombat = n3d::runtimeObjectsConst();
+            const uint8_t oldHealth =
+                beforeCombat ? beforeCombat->inventory().health : 0;
+            const uint16_t oldGameState =
+                beforeCombat ? beforeCombat->inventory().gameState : 0;
+
             n3d::runtimeTickGuards(player->x >> 10, player->y >> 10, 1);
+
+            const n3d::ObjectRuntime *afterCombat = n3d::runtimeObjectsConst();
+            if(afterCombat)
+            {
+                const n3d::InventoryState &state = afterCombat->inventory();
+                if(state.health != oldHealth)
+                    printf("PLAYER HP: %u -> %u\n",
+                           (unsigned)oldHealth, (unsigned)state.health);
+
+                if(oldGameState != 2 && state.gameState == 2 && !deathReported)
+                {
+                    printf("PLAYER DEAD: attacker OBJECT index=%u, gameState=2\n",
+                           (unsigned)state.deathAttackerObjectIndex);
+                    deathReported = true;
+                }
+            }
+
             nextDoorSlow = now + 122;
         }
 
