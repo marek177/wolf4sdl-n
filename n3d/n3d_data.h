@@ -51,8 +51,15 @@ struct ImgSequenceDef
     uint16_t intervalMs;
     uint8_t frameCount;
     uint8_t extended;
+    uint8_t raw[90];
 
-    ImgSequenceDef() : intervalMs(0), frameCount(0), extended(0) {}
+    ImgSequenceDef();
+
+    uint16_t wordAt(unsigned offset) const;
+    uint16_t directionalToken(unsigned table, unsigned direction) const;
+    uint16_t stateToken(unsigned stateIndex) const;
+    uint16_t alternativeToken(bool secondTable, unsigned index) const;
+    uint8_t shortcutFlag(bool secondTable) const;
 };
 
 struct ImgFrame
