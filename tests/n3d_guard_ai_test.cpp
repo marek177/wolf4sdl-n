@@ -497,6 +497,173 @@ int main()
                     "lower bob bound reverses direction")) return 1;
     }
 
+    // Strategy-3 perception enters state 0x13 with RNG timer 8..87 and
+    // cardinal displacement derived from the current facing.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        o.objectClass = 0x12;
+        o.properties = n3d::objectPropertiesForClass(0x12);
+        g.strategy = 3;
+        g.state = 7;
+        g.perceptionMode = 0;
+        g.facing = 2;
+
+        const int32_t nearPlayerX = 6 * 64 + 32;
+        const int32_t nearPlayerY = 5 * 64 + 32;
+
+        guards.tickPreviewAI(nearPlayerX, nearPlayerY, 1);
+
+        if(!require(g.state == 0x13,
+                    "strategy-3 perception enters state 0x13")) return 1;
+        if(!require(g.timer >= 8 && g.timer <= 87,
+                    "state-13 initializer timer is RNG % 80 + 8")) return 1;
+        if(!require(g.moveX == 8 && g.moveY == 0,
+                    "state-13 facing 2 uses cardinal +8 X displacement")) return 1;
+    }
+
+    // State-13 uses old/new timer semantics: new timer 8 is event-only, then
+    // values 7..0 yield exactly eight 8-unit move attempts.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        o.objectClass = 0x12;
+        o.properties = n3d::objectPropertiesForClass(0x12);
+        g.strategy = 3;
+        g.state = 0x13;
+        g.facing = 2;
+        g.moveX = 8;
+        g.moveY = 0;
+        g.timer = 9;
+
+        const int32_t startX = o.worldX;
+        const int32_t startY = o.worldY;
+        const int32_t farPlayerX = 20 * 64 + 32;
+        const int32_t farPlayerY = 20 * 64 + 32;
+
+        guards.tickPreviewAI(farPlayerX, farPlayerY, 1);
+        if(!require(g.timer == 8,
+                    "state-13 old timer 9 decrements to event timer 8")) return 1;
+        if(!require(o.worldX == startX && o.worldY == startY,
+                    "state-13 timer 8 event tick does not move")) return 1;
+
+        for(int i = 0; i < 8; ++i)
+            guards.tickPreviewAI(farPlayerX, farPlayerY, 1);
+
+        if(!require(g.timer == 0,
+                    "state-13 eight move attempts consume timers 7..0")) return 1;
+        if(!require(o.worldX == startX + 64 && o.worldY == startY,
+                    "state-13 eight successful attempts move exactly one tile")) return 1;
+        if(!require(o.tileX == 6 && o.tileY == 5,
+                    "state-13 successful displacement updates MAP cell")) return 1;
+
+        guards.tickPreviewAI(farPlayerX, farPlayerY, 1);
+        if(!require(g.strategy == 0 && g.state == 2,
+                    "state-13 old timer zero clears strategy and returns state 2")) return 1;
+    }
+
+    // Cannon state 0x0E/0x0F/0x10 cycle uses attack-enable, a table-B
+    // directional token via state 0, then fixed Cannon contact damage.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        o.objectClass = 0x19;
+        o.properties = n3d::objectPropertiesForClass(0x19);
+        g.strategy = 4;
+        g.state = 0x0E;
+        g.facing = 2;
+        g.timer = 99;
+        objects.inventory().health = 200;
+
+        guards.setCannonAttackEnabled(true);
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(g.state == 0x0F && g.timer == 0,
+                    "Cannon state 0x0E enabled enters 0x0F with zero timer")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0 && g.nextState == 0x10,
+                    "Cannon ready state 0x0F schedules state 0 before 0x10")) return 1;
+        if(!require(g.sequenceToken == (15u | (2u << 8)),
+                    "Cannon 0x0F selects table-B directional token")) return 1;
+        if(!require(g.timer == 2,
+                    "Cannon 0x0F uses token high byte as state-0 timer")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0x10,
+                    "Cannon attack pre-sequence completes into state 0x10")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(objects.inventory().health == 100,
+                    "Cannon state 0x10 applies fixed medium damage 100")) return 1;
+        if(!require(g.state == 0x0F && g.timer == 8,
+                    "Cannon state 0x10 returns to 0x0F with timer 8")) return 1;
+
+        guards.setCannonAttackEnabled(false);
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0x0E,
+                    "disabled Cannon state 0x0F returns to idle 0x0E")) return 1;
+    }
+
+    // State 0x11 performs its final movement before clearing deltas and
+    // returning to ordinary state 7.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        g.state = 0x11;
+        g.strategy = 1;
+        g.timer = 1;
+        g.moveX = 8;
+        g.moveY = 0;
+
+        const int32_t beforeX = o.worldX;
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(o.worldX == beforeX + 8,
+                    "state 0x11 commits final movement before reset")) return 1;
+        if(!require(g.state == 7 && g.strategy == 0,
+                    "state 0x11 returns to state 7 with generic strategy")) return 1;
+        if(!require(g.moveX == 0 && g.moveY == 0,
+                    "state 0x11 clears movement deltas after final step")) return 1;
+    }
+
     // States 2/3/4 use the dedicated SEQDEF words at +34/+36/+38.
     {
         n3d::EpisodeData episode;
