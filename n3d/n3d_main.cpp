@@ -69,6 +69,8 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     const n3d::DoorRuntime *doors = n3d::runtimeDoorsConst();
     printf("  door controllers: %u / 64\n",
            doors ? (unsigned)doors->controllers().size() : 0u);
+    printf("  remote door mask : 0x%02X\n",
+           doors ? (unsigned)doors->remoteGroupMask() : 0u);
 
     const n3d::ObjectRuntime *objects = n3d::runtimeObjectsConst();
     unsigned activeObjects = 0;
@@ -89,8 +91,18 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
            activeObjects, collectibleObjects);
 
     const n3d::GuardRuntime *guards = n3d::runtimeGuardsConst();
+    unsigned dancers = 0;
+    if(guards)
+    {
+        for(size_t i = 0; i < guards->guards().size(); ++i)
+            if(guards->guards()[i].state == 0x14)
+                ++dancers;
+    }
     printf("  GUARD records   : %u / 100\n",
            guards ? (unsigned)guards->guards().size() : 0u);
+    printf("  Cannon enabled  : %u\n",
+           guards && guards->cannonAttackEnabled() ? 1u : 0u);
+    printf("  ACTIONSPOT dance: %u active\n", dancers);
 
     const n3d::ProjectileRuntime *projectiles =
         n3d::runtimeProjectilesConst();
@@ -113,7 +125,7 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
                (unsigned)inv.gameState,
                inv.omnipotent ? 1u : 0u);
     }
-    printf("\nStage 11 complete: runtime includes IMG SEQDEF projectile/impact animation and explodable-wall lifecycle.\n");
+    printf("\nStage 12 complete: runtime includes FLEE door routing, ACTIONSPOT/Dancers and remote door/Cannon controls.\n");
 
     return 0;
 }
