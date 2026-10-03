@@ -1619,19 +1619,21 @@ static void N3D_DrawObjectSprites(void)
             continue;
 
         n3d::ObjectTextureView texture;
-        if(!n3d::runtimeObjectTexture(object.objectId, texture))
+        if(!n3d::runtimeObjectTexture(object.renderObjectId, texture))
             continue;
 
-        short sx = 0;
-        short ph = 0;
-        TransformTile(object.tileX, object.tileY, &sx, &ph);
-        if(ph <= 0)
+        objtype projected;
+        memset(&projected, 0, sizeof(projected));
+        projected.x = object.worldX << 10;
+        projected.y = object.worldY << 10;
+        TransformActor(&projected);
+        if(projected.viewheight == 0)
             continue;
 
         N3DVisibleObject item;
         item.object = &object;
-        item.screenX = sx;
-        item.projectedHeight = ph;
+        item.screenX = projected.viewx;
+        item.projectedHeight = static_cast<short>(projected.viewheight);
         visible.push_back(item);
     }
 
@@ -1642,7 +1644,7 @@ static void N3D_DrawObjectSprites(void)
         const N3DVisibleObject &item = visible[i];
 
         n3d::ObjectTextureView texture;
-        if(!n3d::runtimeObjectTexture(item.object->objectId, texture))
+        if(!n3d::runtimeObjectTexture(item.object->renderObjectId, texture))
             continue;
 
         // Match Wolf's 64-pixel sprite projection scale first, then preserve
