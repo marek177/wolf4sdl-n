@@ -1543,6 +1543,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
 
         bool shouldMove = false;
         bool state8Reacquire = false;
+        bool state11ResetAfterMove = false;
 
         switch(guard.state)
         {
@@ -1784,20 +1785,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                     --guard.timer;
 
                 if(guard.timer == 0)
-                {
-                    guard.facing =
-                        computeDirectionToPlayer(true, object,
-                                                 playerWorldX,
-                                                 playerWorldY);
-                    guard.moveX = 0;
-                    guard.moveY = 0;
-                    guard.strategy = 0;
-                    guard.state = 7;
-                    refreshDirectionalSequence(guard, object,
-                                               playerWorldX,
-                                               playerWorldY,
-                                               true);
-                }
+                    state11ResetAfterMove = true;
                 break;
 
             case 0x12:
@@ -1863,6 +1851,21 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                                      newX, newY);
                 advanceTokenFrame(guard, object, true);
             }
+        }
+
+        if(state11ResetAfterMove)
+        {
+            guard.facing =
+                computeDirectionToPlayer(true, object,
+                                         playerWorldX,
+                                         playerWorldY);
+            guard.moveX = 0;
+            guard.moveY = 0;
+            guard.strategy = 0;
+            guard.state = 7;
+            refreshDirectionalSequence(guard, object,
+                                       playerWorldX, playerWorldY,
+                                       true);
         }
 
         if(state8Reacquire)
