@@ -2,6 +2,7 @@
 
 #include "n3d_data.h"
 #include "n3d_door.h"
+#include "n3d_guard.h"
 #include "n3d_object.h"
 #include "n3d_render_bridge.h"
 #include "n3d_world.h"
@@ -15,6 +16,7 @@ WorldState g_world;
 RenderMap g_renderMap;
 DoorRuntime g_doors;
 ObjectRuntime g_objects;
+GuardRuntime g_guards;
 bool g_active = false;
 uint8_t g_fallbackColumn[64] = {0};
 }
@@ -51,6 +53,12 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
     }
     g_objects.bindDoors(&g_doors);
 
+    if(!g_guards.build(g_world, g_episode.map, g_objects, &g_doors, error))
+    {
+        unloadRuntime();
+        return false;
+    }
+
     g_active = true;
     return true;
 }
@@ -63,6 +71,7 @@ void unloadRuntime()
     g_renderMap = RenderMap();
     g_doors = DoorRuntime();
     g_objects = ObjectRuntime();
+    g_guards = GuardRuntime();
 }
 
 bool runtimeActive()
@@ -103,6 +112,16 @@ ObjectRuntime *runtimeObjects()
 const ObjectRuntime *runtimeObjectsConst()
 {
     return g_active ? &g_objects : 0;
+}
+
+GuardRuntime *runtimeGuards()
+{
+    return g_active ? &g_guards : 0;
+}
+
+const GuardRuntime *runtimeGuardsConst()
+{
+    return g_active ? &g_guards : 0;
 }
 
 bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out)
@@ -163,6 +182,12 @@ void runtimeTickDoorAutoClose(int playerTileX, int playerTileY)
     if(g_active)
         g_doors.tickAutoClose(playerTileX, playerTileY,
                               &runtimeObjectOccupiedQuery, 0);
+}
+
+void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY)
+{
+    if(g_active)
+        g_guards.tickPreviewMovement(playerWorldX, playerWorldY);
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
