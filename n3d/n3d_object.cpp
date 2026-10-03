@@ -9,7 +9,8 @@ namespace n3d
 RuntimeObject::RuntimeObject()
     : objectId(0), subtype(0), objectClass(0), renderObjectId(0),
       properties(0), guardIndex(0xff),
-      tileX(0), tileY(0), worldX(0), worldY(0), active(false)
+      tileX(0), tileY(0), worldX(0), worldY(0),
+      lastProjectedY(0), verticalOffset(0), active(false)
 {
 }
 
