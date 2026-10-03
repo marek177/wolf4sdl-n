@@ -373,6 +373,84 @@ bool GuardRuntime::updatePerception(GuardRuntimeRecord &guard,
     return false;
 }
 
+int GuardRuntime::firstWallIdForClass(uint8_t wallClass) const
+{
+    if(!map_)
+        return -1;
+
+    for(int id = 0; id < 256; ++id)
+        if(map_->wallClass(static_cast<uint8_t>(id)) == wallClass)
+            return id;
+
+    return -1;
+}
+
+void GuardRuntime::applyNavigationMarker(GuardRuntimeRecord &guard,
+                                         const RuntimeObject &object)
+{
+    if(!world_ || !map_)
+        return;
+
+    // TURN/RETREAT markers are consumed only when the actor is centered in a
+    // 64-unit map cell.
+    if((object.worldX & 0x3f) != 0x20 ||
+       (object.worldY & 0x3f) != 0x20)
+        return;
+
+    const int tileX = static_cast<int>(worldToTile(object.worldX));
+    const int tileY = static_cast<int>(worldToTile(object.worldY));
+    if(tileX < 0 || tileY < 0 ||
+       tileX >= WorldState::Width || tileY >= WorldState::Height)
+        return;
+
+    const WorldCell &cell =
+        world_->at(static_cast<size_t>(tileX), static_cast<size_t>(tileY));
+
+    if(cell.wallClass == 0x41)
+    {
+        const int base = firstWallIdForClass(0x41);
+        if(base >= 0)
+        {
+            const int variant = static_cast<int>(cell.wallId) - base;
+            if(variant >= 0 && variant < 8)
+            {
+                guard.facing = static_cast<uint8_t>(variant);
+                setMovementFromFacing(guard);
+            }
+        }
+        return;
+    }
+
+    if(cell.wallClass != 0x42)
+        return;
+
+    if(guard.moveX != 0 || guard.moveY != 0)
+    {
+        guard.moveX = 0;
+        guard.moveY = 0;
+        guard.state = 3;
+        guard.facing = static_cast<uint8_t>((guard.facing + 4u) & 7u);
+        return;
+    }
+
+    const int base = firstWallIdForClass(0x42);
+    if(base < 0)
+        return;
+
+    const int variant = static_cast<int>(cell.wallId) - base;
+    if(variant == 8)
+    {
+        guard.state = 3;
+        return;
+    }
+
+    if(variant >= 0 && variant < 8)
+    {
+        guard.facing = static_cast<uint8_t>(variant);
+        setMovementFromFacing(guard);
+    }
+}
+
 void GuardRuntime::planStrategy0(GuardRuntimeRecord &guard,
                                  const RuntimeObject &object,
                                  int32_t playerWorldX,
@@ -624,8 +702,9 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 8:
-                // State 8 performs its movement/marker work first, then only
-                // reacquires when nextState is 2.
+                // Original ordering: centered TURN/RETREAT marker first,
+                // movement second, perception/reacquire afterwards.
+                applyNavigationMarker(guard, object);
                 shouldMove = true;
                 break;
 
