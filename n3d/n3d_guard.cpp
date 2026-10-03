@@ -75,8 +75,10 @@ GuardRuntime::InitialProfile GuardRuntime::initialProfile(uint8_t objectClass) c
 
 void GuardRuntime::setMovementFromFacing(GuardRuntimeRecord &guard)
 {
+    // Recovered movement table: adjacent octants share the same cardinal
+    // movement component pair.
     static const int8_t dx[8] = {0, 1, 1, 0, 0, -1, -1, 0};
-    static const int8_t dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    static const int8_t dy[8] = {-1, 0, 0, 1, 1, 0, 0, -1};
 
     const unsigned i = guard.facing & 7u;
     const int scale = guard.strategy == 2 ? 16 : 8;
@@ -96,8 +98,7 @@ bool GuardRuntime::build(WorldState &world,
     doors_ = doors;
     guards_.clear();
 
-    std::vector<RuntimeObject> &runtimeObjects =
-        const_cast<std::vector<RuntimeObject> &>(objects.objects());
+    std::vector<RuntimeObject> &runtimeObjects = objects.objects();
 
     for(size_t i = 0; i < runtimeObjects.size(); ++i)
     {
@@ -127,8 +128,15 @@ bool GuardRuntime::build(WorldState &world,
 
         // The original common tail promotes the initial state to 8 when the
         // spawn movement vector is non-zero.
-        if(guard.moveX != 0 || guard.moveY != 0)
+        if((guard.moveX != 0 || guard.moveY != 0) &&
+           object.objectClass != 0x19 &&
+           object.objectClass != 0x21)
             guard.state = 8;
+        else if(object.objectClass == 0x19 || object.objectClass == 0x21)
+        {
+            guard.moveX = 0;
+            guard.moveY = 0;
+        }
 
         // Navigation markers beneath the actor alter the initial strategy.
         if(object.tileX >= 0 && object.tileY >= 0 &&
@@ -247,8 +255,7 @@ void GuardRuntime::commitObjectPosition(size_t guardIndex,
         return;
 
     GuardRuntimeRecord &guard = guards_[guardIndex];
-    std::vector<RuntimeObject> &runtimeObjects =
-        const_cast<std::vector<RuntimeObject> &>(objects_->objects());
+    std::vector<RuntimeObject> &runtimeObjects = objects_->objects();
     RuntimeObject &object = runtimeObjects[guard.objectIndex];
 
     const int oldTileX = static_cast<int>(worldToTile(oldX));
@@ -292,8 +299,7 @@ void GuardRuntime::tickPreviewMovement(int32_t playerWorldX, int32_t playerWorld
     if(!objects_)
         return;
 
-    std::vector<RuntimeObject> &runtimeObjects =
-        const_cast<std::vector<RuntimeObject> &>(objects_->objects());
+    std::vector<RuntimeObject> &runtimeObjects = objects_->objects();
 
     for(size_t i = 0; i < guards_.size(); ++i)
     {
