@@ -185,7 +185,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
     player->angle = static_cast<short>(StartAngle(world->playerStart.direction));
 
     printf("Nitemare3D Wolf4SDL preview: E%dM%d\n", episode, level);
-    printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, E/Space use, Esc quit\n");
+    printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, E/Space use, 1-4 weapon, F fire, Esc quit\n");
     printf("Collision: recovered 27/28-unit probes; door states 0/4 pass, states 1/2/3 block\n");
     printf("GUARD preview: recovered LOS/proximity, strategy-0 chase and state-4 direct player damage\n");
 
@@ -215,6 +215,68 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                     n3d::runtimeUseDoor(useX, useY, PlayerSector(player));
                 if(useResult != n3d::DoorUseNone)
                     printf("USE %d,%d: %s\n", useX, useY, DoorUseName(useResult));
+            }
+            else if(event.type == SDL_KEYDOWN)
+            {
+                n3d::ObjectRuntime *objects = n3d::runtimeObjects();
+                if(!objects || objects->inventory().gameState == 2)
+                    continue;
+
+                int requestedWeapon = -1;
+                if(event.key.keysym.sym == SDLK_1) requestedWeapon = 0;
+                else if(event.key.keysym.sym == SDLK_2) requestedWeapon = 1;
+                else if(event.key.keysym.sym == SDLK_3) requestedWeapon = 2;
+                else if(event.key.keysym.sym == SDLK_4) requestedWeapon = 3;
+
+                if(requestedWeapon >= 0)
+                {
+                    n3d::InventoryState &inv = objects->inventory();
+                    if((inv.ownedWeapons & (1u << requestedWeapon)) != 0)
+                    {
+                        // Preview shortcut for the already-recovered switch
+                        // transition machine; HUD raise/lower animation follows
+                        // in the dedicated weapon-overlay layer.
+                        inv.activeWeapon = static_cast<uint8_t>(requestedWeapon);
+                        inv.pendingWeapon = static_cast<uint8_t>(requestedWeapon);
+                        inv.weaponSelectionMode =
+                            requestedWeapon == 2 ? 1 : 2;
+                        printf("WEAPON selected: %d\n", requestedWeapon);
+                    }
+                }
+
+                if(event.key.keysym.sym == SDLK_f)
+                {
+                    n3d::InventoryState &inv = objects->inventory();
+                    if(inv.activeWeapon == 2)
+                    {
+                        if(inv.pistolAmmo != 0 || inv.omnipotent)
+                        {
+                            if(!inv.omnipotent)
+                                --inv.pistolAmmo;
+
+                            const n3d::PlayerHitReport hit =
+                                n3d::runtimeFireHitscan(player->x >> 10,
+                                                       player->y >> 10,
+                                                       2, 1, 80);
+                            printf("PISTOL: hits=%u kills=%u scoreDelta=%ld ammo=%u\n",
+                                   hit.hitCount,
+                                   hit.killCount,
+                                   (long)hit.scoreDelta,
+                                   (unsigned)inv.pistolAmmo);
+                        }
+                        else
+                        {
+                            printf("PISTOL: no ammo\n");
+                        }
+                    }
+                    else if(inv.activeWeapon == 0 ||
+                            inv.activeWeapon == 1 ||
+                            inv.activeWeapon == 3)
+                    {
+                        printf("PROJECTILE weapon %u: projectile pool integration pending; ammo preserved\n",
+                               (unsigned)inv.activeWeapon);
+                    }
+                }
             }
         }
 
