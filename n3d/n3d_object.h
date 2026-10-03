@@ -96,6 +96,7 @@ public:
 
     PlayerDamageResult applyEnemyDamage(uint8_t damage,
                                         uint16_t attackerObjectIndex);
+    bool consumeWeaponAmmo(uint8_t weaponId);
 
     RuntimeObject *findAt(int tileX, int tileY);
     const RuntimeObject *findAt(int tileX, int tileY) const;
