@@ -3,6 +3,34 @@
 namespace n3d
 {
 
+bool ObjectTextureBridge::texture(uint8_t objectId, ObjectTextureView &out) const
+{
+    out = ObjectTextureView();
+
+    const std::vector<uint32_t> &slots = img_.objectSlotOffsets();
+    if(static_cast<size_t>(objectId) >= slots.size())
+        return false;
+
+    const uint32_t offset = slots[objectId];
+    if(offset == 0)
+        return false;
+
+    const ImgFrame *frame = img_.frameAtExactOffset(offset);
+    if(!frame || frame->width == 0 || frame->height == 0 || frame->pixels.empty())
+        return false;
+
+    const size_t expected =
+        static_cast<size_t>(frame->width) * static_cast<size_t>(frame->height);
+    if(frame->pixels.size() != expected)
+        return false;
+
+    out.pixels = &frame->pixels[0];
+    out.width = frame->width;
+    out.height = frame->height;
+    out.fileOffset = frame->fileOffset;
+    return true;
+}
+
 RenderMap::RenderMap() : cells(CellCount)
 {
 }
