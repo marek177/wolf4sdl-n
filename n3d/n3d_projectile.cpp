@@ -27,7 +27,8 @@ ProjectileSlot::ProjectileSlot()
     : majorAxis(0), error(0), minorIncrement(0), correctionIncrement(0),
       stepX(0), stepY(0), lifecycle(0), reserved(0),
       worldX(0), worldY(0), verticalOffset(0),
-      sequenceWeapon(0), frame(0), impactUpdatesRemaining(0)
+      sequenceWeapon(0), frame(0), impactUpdatesRemaining(0),
+      firstUpdatePending(false)
 {
 }
 
@@ -112,6 +113,7 @@ ProjectileFireResult ProjectileRuntime::fire(int32_t playerWorldX,
     slot.sequenceWeapon = currentWeapon;
     slot.frame = 0;
     slot.impactUpdatesRemaining = 0;
+    slot.firstUpdatePending = true;
 
     slots_[freeIndex] = slot;
     return ProjectileFireAccepted;
@@ -218,6 +220,12 @@ ProjectileUpdateReport ProjectileRuntime::tick(unsigned substeps,
 
         if(slot.lifecycle == 0)
             continue;
+
+        if(slot.firstUpdatePending)
+        {
+            slot.firstUpdatePending = false;
+            continue;
+        }
 
         if(slot.lifecycle == 2)
         {
