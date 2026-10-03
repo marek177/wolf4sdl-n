@@ -91,6 +91,11 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     const n3d::GuardRuntime *guards = n3d::runtimeGuardsConst();
     printf("  GUARD records   : %u / 100\n",
            guards ? (unsigned)guards->guards().size() : 0u);
+
+    const n3d::ProjectileRuntime *projectiles =
+        n3d::runtimeProjectilesConst();
+    printf("  projectile pool : %u / 8 active\n",
+           projectiles ? projectiles->activeCount() : 0u);
     if(objects)
     {
         const n3d::InventoryState &inv = objects->inventory();
@@ -104,7 +109,7 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
                (unsigned)inv.gameState,
                inv.omnipotent ? 1u : 0u);
     }
-    printf("\nStage 9 complete: runtime includes GUARD perception, state-4 enemy damage and player HP/death state.\n");
+    printf("\nStage 10 complete: runtime includes bidirectional combat, hitscan and the 8-slot projectile core.\n");
 
     return 0;
 }
