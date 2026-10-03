@@ -163,8 +163,11 @@ bool ProjectileRuntime::collide(ProjectileSlot &slot,
     if((objectFlags & 0x40) != 0)
         return true;
 
-    if((objectFlags & 0x08) != 0 && guards_ && objects_)
+    if((objectFlags & 0x08) != 0)
     {
+        if(!guards_ || !objects_)
+            return false;
+
         for(size_t i = 0; i < guards_->guards().size(); ++i)
         {
             GuardRuntimeRecord &guard = guards_->guards()[i];
@@ -178,12 +181,14 @@ bool ProjectileRuntime::collide(ProjectileSlot &slot,
             if(object.tileX != tileX || object.tileY != tileY)
                 continue;
 
+            // Original 9B64 returns "continue" immediately when the actor is
+            // in the visited cell but the projectile has not yet reached the
+            // +/-9 world-unit hit box. It does NOT fall through to generic
+            // object blocking for that actor cell.
             if(absInt(static_cast<int>(object.worldX - candidateX)) >= 10 ||
                absInt(static_cast<int>(object.worldY - candidateY)) >= 10)
-                continue;
+                return false;
 
-            // The original projectile route has no render-generation freshness
-            // gate and the damage helper reads the CURRENT weapon selector.
             const uint8_t damageWeapon =
                 objects_->inventory().activeWeapon <= 3
                     ? objects_->inventory().activeWeapon
@@ -199,6 +204,8 @@ bool ProjectileRuntime::collide(ProjectileSlot &slot,
                 ++report.guardKills;
             return true;
         }
+
+        return false;
     }
 
     if((objectFlags & 0x02) != 0 &&
