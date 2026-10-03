@@ -45,6 +45,7 @@ struct GuardRuntimeRecord
     uint8_t perceptionMode;
     uint8_t losResult;
     uint8_t proximityResult;
+    uint8_t savedSequenceObjectId;
 
     GuardRuntimeRecord();
 };
@@ -97,6 +98,9 @@ public:
     {
         return cannonAttackEnabled_;
     }
+
+    unsigned activateActionSpotDancers();
+    void restoreActionSpotDancers();
 
 private:
     struct InitialProfile
@@ -159,6 +163,10 @@ private:
                                    int32_t playerWorldX,
                                    int32_t playerWorldY);
     int firstWallIdForClass(uint8_t wallClass) const;
+    const DoorController *findNearestFleeDoor(
+        const RuntimeObject &object) const;
+    void planStrategy1Flee(GuardRuntimeRecord &guard,
+                           const RuntimeObject &object);
     void planStrategy0(GuardRuntimeRecord &guard,
                        const RuntimeObject &object,
                        int32_t playerWorldX,
