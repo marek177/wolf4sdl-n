@@ -45,7 +45,8 @@ GuardRuntimeRecord::GuardRuntimeRecord()
     : renderStamp(0), sequenceToken(0), timer(0), objectIndex(0), strategy(0),
       state(7), nextState(2), savedMapObjectId(0), areaId(0),
       syncFlag(0), hp(0xff), facing(0), directionCache(8),
-      moveX(0), moveY(0), perceptionMode(1), losResult(0),
+      moveX(0), moveY(0), verticalBobStep(0),
+      perceptionMode(1), losResult(0),
       proximityResult(0)
 {
 }
@@ -610,6 +611,44 @@ int GuardRuntime::firstWallIdForClass(uint8_t wallClass) const
             return id;
 
     return -1;
+}
+
+void GuardRuntime::updateFlyingBob(GuardRuntimeRecord &guard,
+                                  RuntimeObject &object)
+{
+    if(object.objectClass != 0x08 &&
+       object.objectClass != 0x14 &&
+       object.objectClass != 0x1A)
+        return;
+
+    if(guard.verticalBobStep == 0)
+        guard.verticalBobStep = 1;
+
+    int next =
+        static_cast<int>(object.verticalOffset) +
+        static_cast<int>(guard.verticalBobStep);
+
+    if(next <= 10)
+    {
+        next = 10;
+        guard.verticalBobStep =
+            static_cast<int8_t>(
+                guard.verticalBobStep < 0
+                    ? -guard.verticalBobStep
+                    : guard.verticalBobStep);
+    }
+    else if(next >= 35)
+    {
+        next = 35;
+        guard.verticalBobStep =
+            static_cast<int8_t>(
+                guard.verticalBobStep > 0
+                    ? -guard.verticalBobStep
+                    : guard.verticalBobStep);
+    }
+
+    object.verticalOffset =
+        static_cast<uint8_t>(next);
 }
 
 void GuardRuntime::applyNavigationMarker(GuardRuntimeRecord &guard,
@@ -1569,6 +1608,8 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
 
         if(shouldMove)
         {
+            updateFlyingBob(guard, object);
+
             int32_t newX = object.worldX;
             int32_t newY = object.worldY;
 
