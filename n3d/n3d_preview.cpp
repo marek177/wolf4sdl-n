@@ -191,6 +191,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
 
     Uint32 nextDoorMotion = SDL_GetTicks() + 39;
     Uint32 nextDoorSlow = SDL_GetTicks() + 122;
+    Uint32 nextProjectile = SDL_GetTicks() + 40;
 
     bool running = true;
     bool deathReported = false;
@@ -273,8 +274,39 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                             inv.activeWeapon == 1 ||
                             inv.activeWeapon == 3)
                     {
-                        printf("PROJECTILE weapon %u: projectile pool integration pending; ammo preserved\n",
-                               (unsigned)inv.activeWeapon);
+                        // Wolf4SDL uses 16.16 direction tables. Shift to the
+                        // original N3D-style ~14-bit trig scale; DDA depends
+                        // on the component ratio and signs.
+                        const int directionX =
+                            static_cast<int>(costable[player->angle] >> 2);
+                        const int directionY =
+                            -static_cast<int>(sintable[player->angle] >> 2);
+
+                        const n3d::ProjectileFireResult fire =
+                            n3d::runtimeFireProjectile(player->x >> 10,
+                                                       player->y >> 10,
+                                                       inv.activeWeapon,
+                                                       directionX,
+                                                       directionY);
+
+                        if(fire == n3d::ProjectileFireAccepted)
+                        {
+                            printf("PROJECTILE weapon %u: accepted, active=%u plasma=%u wand=%u\n",
+                                   (unsigned)inv.activeWeapon,
+                                   n3d::runtimeProjectilesConst()
+                                       ? n3d::runtimeProjectilesConst()->activeCount()
+                                       : 0u,
+                                   (unsigned)inv.plasmaAmmo,
+                                   (unsigned)inv.wandAmmo);
+                        }
+                        else if(fire == n3d::ProjectileFirePoolFull)
+                        {
+                            printf("PROJECTILE: pool full, ammo preserved\n");
+                        }
+                        else if(fire == n3d::ProjectileFireNoAmmo)
+                        {
+                            printf("PROJECTILE: no ammo\n");
+                        }
                     }
                 }
             }
@@ -405,6 +437,23 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         {
             n3d::runtimeTickDoorMotion();
             nextDoorMotion = now + 39;
+        }
+
+        if(static_cast<Sint32>(now - nextProjectile) >= 0)
+        {
+            const n3d::ProjectileUpdateReport projectile =
+                n3d::runtimeTickProjectiles(20, 1, 80);
+            if(projectile.guardHits != 0 || projectile.impacts != 0)
+            {
+                printf("PROJECTILES: impacts=%u guardHits=%u kills=%u active=%u\n",
+                       projectile.impacts,
+                       projectile.guardHits,
+                       projectile.guardKills,
+                       n3d::runtimeProjectilesConst()
+                           ? n3d::runtimeProjectilesConst()->activeCount()
+                           : 0u);
+            }
+            nextProjectile = now + 40;
         }
 
         if(static_cast<Sint32>(now - nextDoorSlow) >= 0)
