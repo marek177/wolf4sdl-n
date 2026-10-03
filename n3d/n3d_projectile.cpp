@@ -2,6 +2,7 @@
 
 #include "n3d_collision.h"
 #include "n3d_door.h"
+#include "n3d_data.h"
 #include "n3d_guard.h"
 #include "n3d_object.h"
 #include "n3d_world.h"
@@ -27,25 +28,44 @@ ProjectileSlot::ProjectileSlot()
     : majorAxis(0), error(0), minorIncrement(0), correctionIncrement(0),
       stepX(0), stepY(0), lifecycle(0), reserved(0),
       worldX(0), worldY(0), verticalOffset(0),
-      sequenceWeapon(0), frame(0), impactUpdatesRemaining(0),
-      firstUpdatePending(false)
+      sequenceWeapon(0), sequenceObjectId(0xff), frame(0),
+      animationDeadlineMs(0), firstUpdatePending(false)
 {
 }
 
 ProjectileRuntime::ProjectileRuntime()
-    : world_(0), objects_(0), doors_(0), guards_(0)
+    : world_(0), objects_(0), doors_(0), guards_(0),
+      map_(0), img_(0), missileBaseObjectId_(0xff)
 {
 }
 
 void ProjectileRuntime::bind(WorldState *world,
                              ObjectRuntime *objects,
                              DoorRuntime *doors,
-                             GuardRuntime *guards)
+                             GuardRuntime *guards,
+                             const MapArchive *map,
+                             const ImgArchive *img)
 {
     world_ = world;
     objects_ = objects;
     doors_ = doors;
     guards_ = guards;
+    map_ = map;
+    img_ = img;
+    missileBaseObjectId_ = 0xff;
+
+    if(map_)
+    {
+        for(int id = 0; id < 256; ++id)
+        {
+            if(map_->objectClass(static_cast<uint8_t>(id)) == 0x05)
+            {
+                missileBaseObjectId_ = static_cast<uint8_t>(id);
+                break;
+            }
+        }
+    }
+
     clear();
 }
 
@@ -62,6 +82,80 @@ unsigned ProjectileRuntime::activeCount() const
         if(slots_[i].lifecycle != 0)
             ++count;
     return count;
+}
+
+uint8_t ProjectileRuntime::sequenceObjectIdForWeapon(uint8_t weaponId,
+                                                     bool impact) const
+{
+    static const uint8_t flightOffset[4] = {0, 2, 0, 0};
+    static const uint8_t impactOffset[4] = {1, 3, 1, 1};
+
+    if(missileBaseObjectId_ == 0xff || weaponId > 3)
+        return 0xff;
+
+    const unsigned offset =
+        impact ? impactOffset[weaponId] : flightOffset[weaponId];
+    const unsigned id =
+        static_cast<unsigned>(missileBaseObjectId_) + offset;
+
+    if(id >= 256u)
+        return 0xff;
+
+    const uint8_t objectId = static_cast<uint8_t>(id);
+    if(!map_ || map_->objectClass(objectId) != 0x05)
+        return 0xff;
+
+    return objectId;
+}
+
+const ImgSequenceDef *ProjectileRuntime::sequenceFor(
+    const ProjectileSlot &slot) const
+{
+    if(!img_ || slot.sequenceObjectId == 0xff)
+        return 0;
+
+    return img_->objectSequence(slot.sequenceObjectId);
+}
+
+void ProjectileRuntime::advanceFlightAnimation(ProjectileSlot &slot,
+                                               uint32_t nowMs)
+{
+    const ImgSequenceDef *sequence = sequenceFor(slot);
+    if(!sequence || sequence->frameCount == 0)
+        return;
+
+    if(slot.animationDeadlineMs > nowMs)
+        return;
+
+    unsigned next = static_cast<unsigned>(slot.frame) + 1u;
+    if(next >= sequence->frameCount)
+        next = 0;
+
+    slot.frame = static_cast<uint8_t>(next);
+    slot.animationDeadlineMs =
+        nowMs + static_cast<uint32_t>(sequence->intervalMs);
+}
+
+bool ProjectileRuntime::advanceImpactAnimation(ProjectileSlot &slot,
+                                               uint32_t nowMs)
+{
+    const ImgSequenceDef *sequence = sequenceFor(slot);
+    if(!sequence || sequence->frameCount == 0)
+        return true;
+
+    if(slot.animationDeadlineMs > nowMs)
+        return false;
+
+    const unsigned next =
+        static_cast<unsigned>(slot.frame) + 1u;
+
+    if(next >= sequence->frameCount)
+        return true;
+
+    slot.frame = static_cast<uint8_t>(next);
+    slot.animationDeadlineMs =
+        nowMs + static_cast<uint32_t>(sequence->intervalMs);
+    return false;
 }
 
 ProjectileFireResult ProjectileRuntime::fire(int32_t playerWorldX,
@@ -98,6 +192,16 @@ ProjectileFireResult ProjectileRuntime::fire(int32_t playerWorldX,
     const int minor = ax <= ay ? ax : ay;
     const int major = ax <= ay ? ay : ax;
 
+    const uint8_t flightSequenceObject =
+        sequenceObjectIdForWeapon(currentWeapon, false);
+    if(flightSequenceObject == 0xff)
+        return ProjectileFireInvalidWeapon;
+
+    const ImgSequenceDef *flightSequence =
+        img_ ? img_->objectSequence(flightSequenceObject) : 0;
+    if(!flightSequence || flightSequence->frameCount == 0)
+        return ProjectileFireInvalidWeapon;
+
     ProjectileSlot slot;
     slot.majorAxis = static_cast<int16_t>(ax > ay ? 1 : 0);
     slot.minorIncrement = static_cast<int16_t>(minor * 2);
@@ -111,8 +215,9 @@ ProjectileFireResult ProjectileRuntime::fire(int32_t playerWorldX,
     slot.worldY = playerWorldY;
     slot.verticalOffset = 5;
     slot.sequenceWeapon = currentWeapon;
+    slot.sequenceObjectId = flightSequenceObject;
     slot.frame = 0;
-    slot.impactUpdatesRemaining = 0;
+    slot.animationDeadlineMs = 0;
     slot.firstUpdatePending = true;
 
     slots_[freeIndex] = slot;
@@ -122,6 +227,7 @@ ProjectileFireResult ProjectileRuntime::fire(int32_t playerWorldX,
 bool ProjectileRuntime::collide(ProjectileSlot &slot,
                                 int32_t candidateX,
                                 int32_t candidateY,
+                                uint32_t nowMs,
                                 int difficultyCode,
                                 int viewportCenterY,
                                 ProjectileUpdateReport &report)
@@ -215,7 +321,8 @@ bool ProjectileRuntime::collide(ProjectileSlot &slot,
     return false;
 }
 
-ProjectileUpdateReport ProjectileRuntime::tick(unsigned substeps,
+ProjectileUpdateReport ProjectileRuntime::tick(uint32_t nowMs,
+                                               unsigned substeps,
                                                int difficultyCode,
                                                int viewportCenterY)
 {
@@ -236,15 +343,12 @@ ProjectileUpdateReport ProjectileRuntime::tick(unsigned substeps,
 
         if(slot.lifecycle == 2)
         {
-            // The original duration is SEQDEF-driven. Until the sequence cache
-            // is connected, keep the impact state for one update and then free
-            // the slot. Flight/collision semantics remain independent.
-            if(slot.impactUpdatesRemaining > 0)
-                --slot.impactUpdatesRemaining;
-            if(slot.impactUpdatesRemaining == 0)
+            if(advanceImpactAnimation(slot, nowMs))
                 slot = ProjectileSlot();
             continue;
         }
+
+        advanceFlightAnimation(slot, nowMs);
 
         int32_t x = slot.worldX;
         int32_t y = slot.worldY;
@@ -273,11 +377,24 @@ ProjectileUpdateReport ProjectileRuntime::tick(unsigned substeps,
             }
 
             if(collide(slot, x, y,
+                       nowMs,
                        difficultyCode, viewportCenterY, report))
             {
+                const uint8_t currentWeapon =
+                    objects_ && objects_->inventory().activeWeapon <= 3
+                        ? objects_->inventory().activeWeapon
+                        : slot.sequenceWeapon;
+
                 slot.lifecycle = 2;
+                slot.sequenceObjectId =
+                    sequenceObjectIdForWeapon(currentWeapon, true);
                 slot.frame = 0;
-                slot.impactUpdatesRemaining = 1;
+
+                const ImgSequenceDef *impactSequence = sequenceFor(slot);
+                slot.animationDeadlineMs =
+                    nowMs + static_cast<uint32_t>(
+                        impactSequence ? impactSequence->intervalMs : 0);
+
                 ++report.impacts;
                 break;
             }
