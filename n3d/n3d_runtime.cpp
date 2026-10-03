@@ -184,10 +184,11 @@ void runtimeTickDoorAutoClose(int playerTileX, int playerTileY)
                               &runtimeObjectOccupiedQuery, 0);
 }
 
-void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY)
+void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
+                       int difficultyCode)
 {
     if(g_active)
-        g_guards.tickPreviewMovement(playerWorldX, playerWorldY);
+        g_guards.tickPreviewAI(playerWorldX, playerWorldY, difficultyCode);
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
