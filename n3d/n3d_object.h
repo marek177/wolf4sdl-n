@@ -13,6 +13,7 @@ namespace n3d
 {
 
 class DoorRuntime;
+class GuardRuntime;
 
 struct RuntimeObject
 {
@@ -94,6 +95,11 @@ public:
                std::string &error);
 
     void bindDoors(DoorRuntime *doors) { doors_ = doors; }
+    void bindAnimation(const ImgArchive *img, GuardRuntime *guards)
+    {
+        img_ = img;
+        guards_ = guards;
+    }
 
     const std::vector<RuntimeObject> &objects() const { return objects_; }
     std::vector<RuntimeObject> &objects() { return objects_; }
@@ -113,15 +119,29 @@ public:
     PickupResult touch(int tileX, int tileY);
     void clampHudState();
 
+    bool advanceAnimationForRender(size_t objectIndex,
+                                   uint32_t nowMs,
+                                   int32_t playerWorldX,
+                                   int32_t playerWorldY);
+    void updateVerticalAnchorFromFrame(size_t objectIndex,
+                                       unsigned frameHeight);
+
 private:
     uint8_t subtypeFor(uint8_t objectId, uint8_t objectClass) const;
     uint8_t *ammoPoolForWeapon(unsigned weapon);
     uint8_t *ammoPoolForSubtype(unsigned subtype);
+    uint8_t directionToPlayer(const RuntimeObject &object,
+                              int32_t playerWorldX,
+                              int32_t playerWorldY) const;
+    uint16_t chooseAnimationAlternative(RuntimeObject &object,
+                                        const ImgSequenceDef &sequence);
     void remove(RuntimeObject &object);
 
     WorldState *world_;
     const MapArchive *map_;
+    const ImgArchive *img_;
     DoorRuntime *doors_;
+    GuardRuntime *guards_;
     std::vector<RuntimeObject> objects_;
     InventoryState inventory_;
 };
