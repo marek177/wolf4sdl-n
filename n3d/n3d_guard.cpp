@@ -38,7 +38,8 @@ GuardRuntimeRecord::GuardRuntimeRecord()
 }
 
 GuardRuntime::GuardRuntime()
-    : world_(0), map_(0), objects_(0), doors_(0), previewRng_(0x4e334431UL)
+    : world_(0), map_(0), objects_(0), doors_(0),
+      previewRng_(0x4e334431UL), episode_(1), hamersteinOverride_(false)
 {
 }
 
@@ -103,6 +104,7 @@ bool GuardRuntime::build(WorldState &world,
                          const MapArchive &map,
                          ObjectRuntime &objects,
                          DoorRuntime *doors,
+                         int episode,
                          std::string &error)
 {
     world_ = &world;
@@ -111,6 +113,8 @@ bool GuardRuntime::build(WorldState &world,
     doors_ = doors;
     guards_.clear();
     previewRng_ = 0x4e334431UL;
+    episode_ = episode;
+    hamersteinOverride_ = false;
 
     std::vector<RuntimeObject> &runtimeObjects = objects.objects();
 
@@ -510,6 +514,125 @@ void GuardRuntime::planStrategy0(GuardRuntimeRecord &guard,
     guard.facing = facingFromVector(guard.moveX, guard.moveY, guard.facing);
 }
 
+unsigned GuardRuntime::distanceMetric(int dxCells, int dyCells) const
+{
+    const unsigned ax =
+        static_cast<unsigned>(dxCells < 0 ? -dxCells : dxCells);
+    const unsigned ay =
+        static_cast<unsigned>(dyCells < 0 ? -dyCells : dyCells);
+    const unsigned n = ax * ax + ay * ay;
+
+    if(n < 2u)
+        return n;
+
+    unsigned root = 0;
+    while((root + 1u) * (root + 1u) <= n)
+        ++root;
+
+    // Port of FUN_1018_324A's final rounding rule. It is deliberately not
+    // std::round(sqrt(n)); e.g. sqrt(2) is promoted to 2 by the original.
+    const unsigned remainder = n - root * root;
+    if(root > 0u && root - 1u <= remainder)
+        ++root;
+
+    return root;
+}
+
+uint8_t GuardRuntime::computeContactDamage(const RuntimeObject &object,
+                                           int32_t playerWorldX,
+                                           int32_t playerWorldY,
+                                           int difficultyCode)
+{
+    const int guardCellX = static_cast<int>(worldToTile(object.worldX));
+    const int guardCellY = static_cast<int>(worldToTile(object.worldY));
+    const int playerCellX = static_cast<int>(worldToTile(playerWorldX));
+    const int playerCellY = static_cast<int>(worldToTile(playerWorldY));
+
+    const unsigned distance =
+        distanceMetric(guardCellX - playerCellX,
+                       guardCellY - playerCellY);
+
+    unsigned damage = distance < 1u ? 100u : 100u / distance;
+
+    switch(object.objectClass)
+    {
+        case 0x08:
+            damage = static_cast<unsigned>(nextPreviewRandom()) & 7u;
+            break;
+
+        case 0x09:
+        case 0x0A:
+            damage = static_cast<unsigned>(nextPreviewRandom()) & 15u;
+            break;
+
+        case 0x0B:
+            damage >>= 2;
+            break;
+
+        case 0x0C:
+        case 0x1D:
+        case 0x1E:
+            break;
+
+        case 0x11:
+        case 0x12:
+        case 0x13:
+        case 0x14:
+            damage = static_cast<unsigned>(nextPreviewRandom()) & 31u;
+            break;
+
+        case 0x16:
+            if(episode_ != 3 && !hamersteinOverride_)
+            {
+                damage = 0x21u;
+                break;
+            }
+            // Episode 3 / override deliberately falls through to Cannon-style
+            // fixed 100 damage in the original switch.
+        case 0x19:
+            damage = 100u;
+            break;
+
+        default:
+            damage >>= 1;
+            break;
+    }
+
+    if(difficultyCode == 2)
+        damage *= 2u;
+    else if(difficultyCode == 0)
+        damage >>= 1;
+
+    if(damage > 255u)
+        damage = 255u;
+
+    return static_cast<uint8_t>(damage);
+}
+
+PlayerDamageResult GuardRuntime::attackPlayer(GuardRuntimeRecord &guard,
+                                              const RuntimeObject &object,
+                                              int32_t playerWorldX,
+                                              int32_t playerWorldY,
+                                              int difficultyCode)
+{
+    if(!objects_)
+        return PlayerDamageSuppressed;
+
+    const uint8_t damage =
+        computeContactDamage(object,
+                             playerWorldX,
+                             playerWorldY,
+                             difficultyCode);
+
+    const PlayerDamageResult result =
+        objects_->applyEnemyDamage(damage, guard.objectIndex);
+
+    if(result == PlayerDamageLethal)
+        guard.state = 0x0B;
+
+    return result;
+}
+
 bool GuardRuntime::candidateBlocked(size_t guardIndex,
                                     int32_t worldX,
                                     int32_t worldY,
@@ -665,13 +788,27 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 break;
 
             case 4:
-                // Preserve attack-ready state while perception succeeds.
-                // Weapon/contact execution is deliberately not synthesized.
-                if(!updatePerception(guard, object,
+            {
+                const bool canAttack =
+                    updatePerception(guard, object,
                                      playerWorldX, playerWorldY,
-                                     false, true))
-                    guard.state = 5;
+                                     false, true);
+
+                if(canAttack)
+                {
+                    const PlayerDamageResult result =
+                        attackPlayer(guard, object,
+                                     playerWorldX, playerWorldY,
+                                     difficultyCode);
+                    if(result == PlayerDamageLethal)
+                        break;
+                }
+
+                // Original state-4 tail schedules the fallback/movement state
+                // whenever the player was not killed.
+                guard.state = 5;
                 break;
+            }
 
             case 5:
                 if(guard.strategy == 0 ||
