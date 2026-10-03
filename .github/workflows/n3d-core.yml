@@ -1,0 +1,24 @@
+name: N3D Core C++98
+
+on:
+  push:
+    branches:
+      - feature/nitemare3d-bootstrap
+  pull_request:
+    paths:
+      - "n3d/**"
+      - ".github/workflows/n3d-core.yml"
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Nitemare3D core
+        run: |
+          mkdir -p build/n3d-core
+          for src in             n3d/n3d_data.cpp             n3d/n3d_world.cpp             n3d/n3d_collision.cpp             n3d/n3d_door.cpp             n3d/n3d_object.cpp             n3d/n3d_render_bridge.cpp             n3d/n3d_runtime.cpp             n3d/n3d_main.cpp
+          do
+            obj="build/n3d-core/$(basename "${src%.cpp}").o"
+            g++ -std=c++98 -Wall -Wextra -Werror -pedantic -I. -In3d -c "$src" -o "$obj"
+          done
