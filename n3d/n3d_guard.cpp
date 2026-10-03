@@ -13,6 +13,19 @@ int absInt(int value)
     return value < 0 ? -value : value;
 }
 
+int arithmeticShiftRight(int value, unsigned bits)
+{
+    if(bits == 0)
+        return value;
+
+    if(value >= 0)
+        return value >> bits;
+
+    const unsigned magnitude = static_cast<unsigned>(-value);
+    const unsigned bias = (1u << bits) - 1u;
+    return -static_cast<int>((magnitude + bias) >> bits);
+}
+
 uint8_t facingFromVector(int dx, int dy, uint8_t fallback)
 {
     if(dx == 0 && dy < 0) return 0;
@@ -39,7 +52,8 @@ GuardRuntimeRecord::GuardRuntimeRecord()
 
 GuardRuntime::GuardRuntime()
     : world_(0), map_(0), objects_(0), doors_(0),
-      previewRng_(0x4e334431UL), episode_(1), hamersteinOverride_(false)
+      previewRng_(0x4e334431UL), episode_(1), hamersteinOverride_(false),
+      renderGeneration_(1)
 {
 }
 
@@ -113,6 +127,7 @@ bool GuardRuntime::build(WorldState &world,
     doors_ = doors;
     guards_.clear();
     previewRng_ = 0x4e334431UL;
+    renderGeneration_ = 1;
     episode_ = episode;
     hamersteinOverride_ = false;
 
@@ -210,6 +225,36 @@ void GuardRuntime::updateRenderFacing(RuntimeObject &object,
         object.renderObjectId = static_cast<uint8_t>(candidate);
 }
 
+
+uint32_t GuardRuntime::beginRenderGeneration()
+{
+    ++renderGeneration_;
+    if(renderGeneration_ == 0)
+        ++renderGeneration_;
+    return renderGeneration_;
+}
+
+void GuardRuntime::markProjectedObject(size_t objectIndex,
+                                       int projectedBaselineY,
+                                       int spriteLeft,
+                                       int spriteRight,
+                                       int centerX)
+{
+    if(!objects_ || objectIndex >= objects_->objects().size())
+        return;
+
+    RuntimeObject &object = objects_->objects()[objectIndex];
+    object.lastProjectedY = static_cast<int16_t>(projectedBaselineY);
+
+    if(object.guardIndex == 0xff ||
+       static_cast<size_t>(object.guardIndex) >= guards_.size())
+        return;
+
+    // Exact hitscan freshness/aim condition from the recovered projection path:
+    // expanded horizontal interval must straddle the view center.
+    if((spriteLeft - 4) < centerX && (spriteRight + 4) > centerX)
+        guards_[object.guardIndex].renderStamp = renderGeneration_;
+}
 
 uint32_t GuardRuntime::nextPreviewRandom()
 {
