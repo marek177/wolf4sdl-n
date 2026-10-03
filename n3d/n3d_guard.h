@@ -47,6 +47,7 @@ public:
                const MapArchive &map,
                ObjectRuntime &objects,
                DoorRuntime *doors,
+               int episode,
                std::string &error);
 
     const std::vector<GuardRuntimeRecord> &guards() const { return guards_; }
@@ -95,6 +96,16 @@ private:
                        int32_t playerWorldY,
                        int difficultyCode);
     uint32_t nextPreviewRandom();
+    unsigned distanceMetric(int dxCells, int dyCells) const;
+    uint8_t computeContactDamage(const RuntimeObject &object,
+                                 int32_t playerWorldX,
+                                 int32_t playerWorldY,
+                                 int difficultyCode);
+    PlayerDamageResult attackPlayer(GuardRuntimeRecord &guard,
+                                    const RuntimeObject &object,
+                                    int32_t playerWorldX,
+                                    int32_t playerWorldY,
+                                    int difficultyCode);
 
     bool candidateBlocked(size_t guardIndex,
                           int32_t worldX,
@@ -113,6 +124,8 @@ private:
     DoorRuntime *doors_;
     std::vector<GuardRuntimeRecord> guards_;
     uint32_t previewRng_;
+    int episode_;
+    bool hamersteinOverride_;
 };
 
 } // namespace n3d
