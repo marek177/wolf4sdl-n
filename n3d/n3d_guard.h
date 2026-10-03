@@ -41,6 +41,7 @@ struct GuardRuntimeRecord
     uint8_t directionCache;
     int8_t moveX;
     int8_t moveY;
+    int8_t verticalBobStep;
     uint8_t perceptionMode;
     uint8_t losResult;
     uint8_t proximityResult;
@@ -141,6 +142,8 @@ private:
                           bool testObjectPlane) const;
     void applyNavigationMarker(GuardRuntimeRecord &guard,
                                const RuntimeObject &object);
+    void updateFlyingBob(GuardRuntimeRecord &guard,
+                         RuntimeObject &object);
     int firstWallIdForClass(uint8_t wallClass) const;
     void planStrategy0(GuardRuntimeRecord &guard,
                        const RuntimeObject &object,
