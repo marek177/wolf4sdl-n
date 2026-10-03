@@ -639,6 +639,38 @@ int main()
         if(!require(g.timer == 1, "Dracula-Bat transform timer is 1")) return 1;
         if(!require(o.verticalOffset == 0x23,
                     "Dracula-Bat vertical anchor becomes 0x23")) return 1;
+        if(!require(world.at(static_cast<size_t>(o.tileX),
+                             static_cast<size_t>(o.tileY)).objectClass == 0x14,
+                    "Dracula-Bat is re-linked into MAP occupancy")) return 1;
+    }
+
+    // Hamerstein fatal state-9 finalization raises a separate ending request.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+        o.objectClass = 0x16;
+        o.properties = n3d::objectPropertiesForClass(0x16);
+        o.lastProjectedY = 120;
+        g.hp = 1;
+
+        bool killed = false;
+        guards.applyPlayerWeaponHit(0, 2, 1, 80, &killed);
+        guards.tickPreviewAI(playerX, playerY, 1);
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(killed, "Hamerstein reaches fatal GUARD path")) return 1;
+        if(!require(objects.inventory().endingRequested,
+                    "Hamerstein raises ending request")) return 1;
+        if(!require(objects.inventory().gameState == 0,
+                    "Hamerstein resets ordinary game state before ending")) return 1;
     }
 
     std::remove("n3d_guard_ai_test.map");
