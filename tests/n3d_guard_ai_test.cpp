@@ -98,7 +98,7 @@ bool buildFixture(n3d::EpisodeData &episode,
 
     objects.bindDoors(&doors);
 
-    if(!guards.build(world, episode.map, objects, &doors, episode.episode, error))
+    if(!guards.build(world, episode.map, episode.img, objects, &doors, episode.episode, error))
     {
         std::cerr << error << "\n";
         return false;
@@ -254,7 +254,7 @@ int main()
             return 1;
         }
         objects.bindDoors(&doors);
-        if(!guards.build(world, episode.map, objects, &doors, episode.episode, error))
+        if(!guards.build(world, episode.map, episode.img, objects, &doors, episode.episode, error))
         {
             std::cerr << error << "\n";
             return 1;
