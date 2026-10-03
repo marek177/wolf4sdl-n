@@ -89,6 +89,15 @@ public:
 
     uint32_t nextGameplayRandom();
 
+    void setCannonAttackEnabled(bool enabled)
+    {
+        cannonAttackEnabled_ = enabled;
+    }
+    bool cannonAttackEnabled() const
+    {
+        return cannonAttackEnabled_;
+    }
+
 private:
     struct InitialProfile
     {
@@ -144,6 +153,11 @@ private:
                                const RuntimeObject &object);
     void updateFlyingBob(GuardRuntimeRecord &guard,
                          RuntimeObject &object);
+    void beginState13Displacement(GuardRuntimeRecord &guard);
+    void updateState13Displacement(GuardRuntimeRecord &guard,
+                                   RuntimeObject &object,
+                                   int32_t playerWorldX,
+                                   int32_t playerWorldY);
     int firstWallIdForClass(uint8_t wallClass) const;
     void planStrategy0(GuardRuntimeRecord &guard,
                        const RuntimeObject &object,
@@ -194,6 +208,7 @@ private:
     uint32_t previewRng_;
     int episode_;
     bool hamersteinOverride_;
+    bool cannonAttackEnabled_;
     uint32_t renderGeneration_;
 };
 
