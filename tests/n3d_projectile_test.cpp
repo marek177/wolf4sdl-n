@@ -45,19 +45,53 @@ void writeU32(std::vector<unsigned char> &bytes,
         static_cast<unsigned char>((value >> 24) & 0xffUL);
 }
 
+void appendFrame(std::vector<unsigned char> &bytes,
+                 unsigned width,
+                 unsigned height,
+                 unsigned char color)
+{
+    bytes.push_back(static_cast<unsigned char>(width));
+    bytes.push_back(static_cast<unsigned char>(height));
+    for(int i = 0; i < 8; ++i)
+        bytes.push_back(0);
+    for(unsigned i = 0; i < width * height; ++i)
+        bytes.push_back(color);
+}
+
 void appendTinyFrame(std::vector<unsigned char> &bytes,
                      unsigned char color)
 {
-    bytes.push_back(1); // width
-    bytes.push_back(1); // height
-    for(int i = 0; i < 8; ++i)
-        bytes.push_back(0);
-    bytes.push_back(color);
+    appendFrame(bytes, 1, 1, color);
 }
 
 bool writeSyntheticImg(const char *path)
 {
     std::vector<unsigned char> bytes(n3d::ImgArchive::FrameDataOffset, 0);
+
+    // Low/wall bank: runtime explosion class 0x2D, WALL_EX1, WALL_EX2.
+    const unsigned char wallIds[3] = {0x20, 0x21, 0x22};
+    const unsigned short wallIntervals[3] = {50, 0, 50};
+    const unsigned char wallCounts[3] = {3, 1, 3};
+
+    for(int s = 0; s < 3; ++s)
+    {
+        const unsigned char id = wallIds[s];
+        const unsigned long stream =
+            static_cast<unsigned long>(bytes.size());
+
+        writeU32(bytes, static_cast<unsigned>(id) * 4u, stream);
+
+        const size_t seq =
+            static_cast<size_t>(n3d::ImgArchive::LowSequenceBankOffset) +
+            static_cast<size_t>(id) *
+            static_cast<size_t>(n3d::ImgArchive::SequenceRecordBytes);
+        writeU16(bytes, seq, wallIntervals[s]);
+        bytes[seq + 2] = wallCounts[s];
+
+        for(unsigned f = 0; f < wallCounts[s]; ++f)
+            appendFrame(bytes, 1, 64,
+                        static_cast<unsigned char>(0x50 + s * 4 + f));
+    }
 
     const unsigned char ids[4] = {0xFB, 0xFC, 0xFD, 0xFE};
     const unsigned short intervals[4] = {50, 100, 50, 100};
@@ -103,6 +137,9 @@ bool writeSyntheticMap(const char *path)
 
     bytes[0x002 + 1] = 0x01; // hard wall
     bytes[0x002 + 2] = 0x31; // dynamic door
+    bytes[0x002 + 0x20] = 0x2D; // runtime exploding-wall class
+    bytes[0x002 + 0x21] = 0x2E; // WALL_EX1
+    bytes[0x002 + 0x22] = 0x2F; // WALL_EX2
 
     for(int id = 1; id <= 4; ++id)
         bytes[0x102 + id] = 0x02; // START
@@ -320,6 +357,37 @@ int main()
                     "flying projectile elevation increments after movement")) return 1;
     }
 
+    // Flight SEQDEF loops by interval, one frame per due update.
+    {
+        Fixture f;
+        if(!buildFixture(f)) return 1;
+
+        f.objects.inventory().plasmaAmmo = 4;
+        f.objects.inventory().activeWeapon = 0;
+        f.projectiles.fire(startX, startY, 0, -16384, 0);
+
+        if(!require(f.projectiles.slot(0).sequenceObjectId == 0xFB,
+                    "W0 uses plasma flight sequence FB")) return 1;
+        if(!require(f.projectiles.slot(0).frame == 0,
+                    "projectile starts at flight frame zero")) return 1;
+
+        f.projectiles.tick(40, 0, 1, 80); // allocator-frame defer
+        if(!require(f.projectiles.slot(0).frame == 0,
+                    "allocator frame preserves flight frame zero")) return 1;
+
+        f.projectiles.tick(40, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).frame == 1,
+                    "due flight update advances one frame")) return 1;
+
+        f.projectiles.tick(80, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).frame == 1,
+                    "flight frame waits until SEQDEF deadline")) return 1;
+
+        f.projectiles.tick(100, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).frame == 0,
+                    "flight sequence loops at frame count")) return 1;
+    }
+
     // Hard wall collision switches flight to impact before reaching the GUARD.
     {
         Fixture f;
@@ -350,6 +418,101 @@ int main()
                     "hard wall terminates projectile flight")) return 1;
         if(!require(total.guardHits == 0,
                     "wall impact occurs before GUARD")) return 1;
+        if(!require(f.projectiles.slot(0).lifecycle == 2,
+                    "wall collision enters impact lifecycle")) return 1;
+        if(!require(f.projectiles.slot(0).sequenceObjectId == 0xFC,
+                    "W0 impact switches to plasma impact sequence FC")) return 1;
+        if(!require(f.projectiles.slot(0).frame == 0,
+                    "impact starts at frame zero")) return 1;
+
+        f.projectiles.tick(200, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).frame == 0,
+                    "impact waits for its 100 ms deadline")) return 1;
+        f.projectiles.tick(240, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).frame == 1,
+                    "impact advances one frame when due")) return 1;
+        f.projectiles.tick(360, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).frame == 2,
+                    "impact reaches final visible frame")) return 1;
+        f.projectiles.tick(480, 0, 1, 80);
+        if(!require(f.projectiles.slot(0).lifecycle == 0,
+                    "impact slot frees after final SEQDEF frame")) return 1;
+    }
+
+    // WALL_EX1 converts to runtime class 0x2D, animates the common
+    // explosion sequence and persistently clears the impacted MAP wall byte.
+    {
+        Fixture f;
+        if(!buildFixture(f)) return 1;
+
+        f.world.at(4, 5).wallId = 0x21;
+        f.world.at(4, 5).wallClass = 0x2E;
+
+        f.objects.inventory().plasmaAmmo = 4;
+        f.objects.inventory().activeWeapon = 0;
+        f.projectiles.fire(startX, startY, 0, 16384, 0);
+
+        f.projectiles.tick(40, 20, 1, 80);
+        f.projectiles.tick(80, 20, 1, 80);
+        const n3d::ProjectileUpdateReport hit =
+            f.projectiles.tick(120, 20, 1, 80);
+
+        if(!require(hit.impacts == 1,
+                    "WALL_EX1 projectile impact is handled")) return 1;
+        if(!require(f.world.at(4, 5).wallClass == 0x2D,
+                    "WALL_EX1 becomes runtime class 0x2D")) return 1;
+
+        const n3d::ExplodingWallRecord *wall =
+            f.projectiles.explodingWallAt(4, 5);
+        if(!require(wall != 0,
+                    "explodable wall runtime record exists")) return 1;
+        if(!require(wall->sequenceWallId == 0x20 && wall->frame == 0,
+                    "WALL_EX1 uses common class-2D sequence frame zero")) return 1;
+
+        f.projectiles.tick(160, 0, 1, 80);
+        wall = f.projectiles.explodingWallAt(4, 5);
+        if(!require(wall && wall->frame == 0,
+                    "explosion waits for 50 ms deadline")) return 1;
+
+        f.projectiles.tick(200, 0, 1, 80);
+        wall = f.projectiles.explodingWallAt(4, 5);
+        if(!require(wall && wall->frame == 1,
+                    "explosion advances to frame one")) return 1;
+
+        f.projectiles.tick(280, 0, 1, 80);
+        wall = f.projectiles.explodingWallAt(4, 5);
+        if(!require(wall && wall->frame == 2,
+                    "explosion advances to final frame")) return 1;
+
+        f.projectiles.tick(360, 0, 1, 80);
+        if(!require(f.projectiles.explodingWallAt(4, 5) == 0,
+                    "completed explosion deactivates runtime record")) return 1;
+        if(!require(f.world.at(4, 5).wallId == 0,
+                    "completed explosion clears persistent MAP wall byte")) return 1;
+    }
+
+    // WALL_EX2 keeps its own wall sequence and starts at frame one.
+    {
+        Fixture f;
+        if(!buildFixture(f)) return 1;
+
+        f.world.at(4, 5).wallId = 0x22;
+        f.world.at(4, 5).wallClass = 0x2F;
+
+        f.objects.inventory().plasmaAmmo = 4;
+        f.objects.inventory().activeWeapon = 0;
+        f.projectiles.fire(startX, startY, 0, 16384, 0);
+
+        f.projectiles.tick(40, 20, 1, 80);
+        f.projectiles.tick(80, 20, 1, 80);
+        f.projectiles.tick(120, 20, 1, 80);
+
+        const n3d::ExplodingWallRecord *wall =
+            f.projectiles.explodingWallAt(4, 5);
+        if(!require(wall != 0 &&
+                    wall->sequenceWallId == 0x22 &&
+                    wall->frame == 1,
+                    "WALL_EX2 starts at frame one of its own sequence")) return 1;
     }
 
     // Projectile route does not require a current render stamp. Damage uses
