@@ -104,6 +104,8 @@ public:
 
 private:
     bool hasFrameAtOffset(uint32_t offset) const;
+    const ImgFrame *sequenceFrameFromOffset(uint32_t offset,
+                                            unsigned frameIndex) const;
 
     uint32_t reservedDword_;
     uint32_t firstDataOffset_;
