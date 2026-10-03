@@ -237,8 +237,8 @@ int main()
 
         if(!require(g.sequenceToken == (15u | (2u << 8)),
                     "state-8 directional table selects relative direction token")) return 1;
-        if(!require(o.animationFrame == 16,
-                    "successful movement advances inside selected directional token")) return 1;
+        if(!require(o.animationFrame == 15,
+                    "first state-8 refresh installs directional token after movement")) return 1;
 
         if(!require(g.losResult == 1, "clear east LOS detected")) return 1;
         if(!require(g.state == 2, "state 8 reacquires into state 2")) return 1;
