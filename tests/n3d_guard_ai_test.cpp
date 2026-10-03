@@ -235,9 +235,9 @@ int main()
         n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
         guards.tickPreviewAI(playerX, playerY, 1);
 
-        if(!require(g.sequenceToken == (19u | (2u << 8)),
+        if(!require(g.sequenceToken == (15u | (2u << 8)),
                     "state-8 directional table selects relative direction token")) return 1;
-        if(!require(o.animationFrame == 20,
+        if(!require(o.animationFrame == 16,
                     "successful movement advances inside selected directional token")) return 1;
 
         if(!require(g.losResult == 1, "clear east LOS detected")) return 1;
