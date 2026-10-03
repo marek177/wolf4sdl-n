@@ -1623,6 +1623,10 @@ static void N3D_DrawObjectSprites(void)
 
     n3d::runtimeBeginRenderGeneration();
 
+    const uint32_t nowMs = SDL_GetTicks();
+    const int32_t playerWorldX = player ? (player->x >> 10) : 0;
+    const int32_t playerWorldY = player ? (player->y >> 10) : 0;
+
     std::vector<N3DVisibleObject> visible;
     visible.reserve(runtime->objects().size());
 
@@ -1631,6 +1635,11 @@ static void N3D_DrawObjectSprites(void)
         const n3d::RuntimeObject &object = runtime->objects()[i];
         if(!object.active)
             continue;
+
+        n3d::runtimeAdvanceWorldObjectAnimation(i,
+                                                nowMs,
+                                                playerWorldX,
+                                                playerWorldY);
 
         n3d::ObjectTextureView texture;
         if(!n3d::runtimeWorldObjectTexture(i, texture))
