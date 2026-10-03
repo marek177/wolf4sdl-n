@@ -62,6 +62,8 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
         return false;
     }
 
+    g_objects.bindAnimation(&g_episode.img, &g_guards);
+
     g_projectiles.bind(&g_world, &g_objects, &g_doors, &g_guards,
                        &g_episode.map, &g_episode.img);
 
@@ -167,13 +169,33 @@ bool runtimeWorldObjectTexture(size_t objectIndex,
 
     ObjectTextureBridge bridge(g_episode.img);
 
-    if(object.sequenceObjectId != 0xff &&
-       bridge.sequenceTexture(object.sequenceObjectId,
-                              object.animationFrame,
-                              out))
-        return true;
+    bool ok = false;
+    if(object.sequenceObjectId != 0xff)
+        ok = bridge.sequenceTexture(object.sequenceObjectId,
+                                    object.animationFrame,
+                                    out);
 
-    return bridge.texture(object.renderObjectId, out);
+    if(!ok)
+        ok = bridge.texture(object.renderObjectId, out);
+
+    if(ok)
+        g_objects.updateVerticalAnchorFromFrame(objectIndex, out.height);
+
+    return ok;
+}
+
+bool runtimeAdvanceWorldObjectAnimation(size_t objectIndex,
+                                        uint32_t nowMs,
+                                        int32_t playerWorldX,
+                                        int32_t playerWorldY)
+{
+    if(!g_active)
+        return false;
+
+    return g_objects.advanceAnimationForRender(objectIndex,
+                                               nowMs,
+                                               playerWorldX,
+                                               playerWorldY);
 }
 
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData)
