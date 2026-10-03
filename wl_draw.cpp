@@ -1602,6 +1602,13 @@ struct N3DVisibleObject
     short projectedHeight;
 };
 
+struct N3DVisibleProjectile
+{
+    size_t slotIndex;
+    short screenX;
+    short projectedHeight;
+};
+
 static bool N3DVisibleObjectLess(const N3DVisibleObject &a,
                                  const N3DVisibleObject &b)
 {
@@ -1731,14 +1738,7 @@ static void N3D_DrawProjectileSprites(void)
     if(!projectiles || !player)
         return;
 
-    struct VisibleProjectile
-    {
-        size_t slotIndex;
-        short screenX;
-        short projectedHeight;
-    };
-
-    std::vector<VisibleProjectile> visible;
+    std::vector<N3DVisibleProjectile> visible;
     visible.reserve(n3d::ProjectileRuntime::SlotCount);
 
     const int32_t playerWorldX = player->x >> 10;
@@ -1773,7 +1773,7 @@ static void N3D_DrawProjectileSprites(void)
         if(projected.viewheight == 0)
             continue;
 
-        VisibleProjectile item;
+        N3DVisibleProjectile item;
         item.slotIndex = i;
         item.screenX = projected.viewx;
         item.projectedHeight =
@@ -1789,7 +1789,7 @@ static void N3D_DrawProjectileSprites(void)
             if(visible[b].projectedHeight <
                visible[a].projectedHeight)
             {
-                const VisibleProjectile tmp = visible[a];
+                const N3DVisibleProjectile tmp = visible[a];
                 visible[a] = visible[b];
                 visible[b] = tmp;
             }
@@ -1798,7 +1798,7 @@ static void N3D_DrawProjectileSprites(void)
 
     for(size_t i = 0; i < visible.size(); ++i)
     {
-        const VisibleProjectile &item = visible[i];
+        const N3DVisibleProjectile &item = visible[i];
         const n3d::ProjectileSlot &slot =
             projectiles->slot(item.slotIndex);
 
