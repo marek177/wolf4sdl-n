@@ -82,6 +82,12 @@ public:
                                        bool reverse,
                                        unsigned *uOut,
                                        unsigned *widthOut) const;
+    const uint8_t *columnFromWolfFixedFrame(uint8_t wallId,
+                                            unsigned frameIndex,
+                                            int32_t alongWallFixed,
+                                            bool reverse,
+                                            unsigned *uOut,
+                                            unsigned *widthOut) const;
 
 private:
     const ImgArchive &img_;
