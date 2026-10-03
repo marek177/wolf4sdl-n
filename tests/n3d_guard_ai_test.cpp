@@ -349,6 +349,110 @@ int main()
         if(!require(g.timer == 0x18, "unseen strategy-0 timer is 0x18")) return 1;
     }
 
+    // State 4 applies class-specific contact damage and enters state 5.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 4;
+        objects.inventory().health = 100;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        // Skeleton class 0x0B at three cells: distance=3, base=33, /4=8.
+        if(!require(objects.inventory().health == 92,
+                    "state 4 applies Skeleton medium damage 8")) return 1;
+        if(!require(objects.inventory().damageFlash == 3,
+                    "nonzero enemy hit sets damage feedback to 3")) return 1;
+        if(!require(g.state == 5,
+                    "surviving state-4 attack enters state 5")) return 1;
+    }
+
+    // Difficulty direction is easy /2, medium x1, hard x2.
+    {
+        const int expected[3] = {96, 92, 84};
+        for(int difficulty = 0; difficulty < 3; ++difficulty)
+        {
+            n3d::EpisodeData episode;
+            n3d::WorldState world;
+            n3d::ObjectRuntime objects;
+            n3d::DoorRuntime doors;
+            n3d::GuardRuntime guards;
+            if(!buildFixture(episode, world, objects, doors, guards))
+                return 1;
+
+            n3d::GuardRuntimeRecord &g = guards.guards()[0];
+            g.state = 4;
+            objects.inventory().health = 100;
+
+            guards.tickPreviewAI(playerX, playerY, difficulty);
+
+            if(!require(objects.inventory().health == expected[difficulty],
+                        "enemy damage difficulty scaling")) return 1;
+        }
+    }
+
+    // Lethal damage sets HP/state/death attacker and freezes the killing GUARD.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 4;
+        objects.inventory().health = 8;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(objects.inventory().health == 0,
+                    "lethal enemy damage saturates player HP at zero")) return 1;
+        if(!require(objects.inventory().gameState == 2,
+                    "lethal enemy damage enters game state 2")) return 1;
+        if(!require(objects.inventory().deathTransitionPending,
+                    "lethal enemy damage raises death transition flag")) return 1;
+        if(!require(objects.inventory().deathAttackerObjectIndex == g.objectIndex,
+                    "death stores attacking OBJECT index")) return 1;
+        if(!require(g.state == 0x0B,
+                    "killing GUARD enters terminal state 0x0B")) return 1;
+    }
+
+    // Omnipotent suppresses HP/state mutation after damage is computed.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 4;
+        objects.inventory().health = 100;
+        objects.inventory().omnipotent = true;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(objects.inventory().health == 100,
+                    "Omnipotent suppresses enemy HP damage")) return 1;
+        if(!require(objects.inventory().gameState == 0,
+                    "Omnipotent suppresses death state")) return 1;
+        if(!require(objects.inventory().damageFlash == 3,
+                    "Omnipotent still observes nonzero damage feedback ordering")) return 1;
+        if(!require(g.state == 5,
+                    "suppressed state-4 attack continues to fallback state 5")) return 1;
+    }
+
     std::remove("n3d_guard_ai_test.map");
     std::cout << "N3D GUARD AI core tests passed\n";
     return 0;
