@@ -1159,7 +1159,7 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
             continue;
 
         RuntimeObject &object = runtimeObjects[guard.objectIndex];
-        if(!object.active || guard.hp == 0)
+        if(!object.active)
             continue;
 
         bool shouldMove = false;
