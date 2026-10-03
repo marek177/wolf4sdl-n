@@ -59,6 +59,7 @@ struct InventoryState
     uint8_t activeWeapon;
     uint8_t pendingWeapon;
     uint8_t weaponSelectionMode;
+    uint8_t fireCadenceCounter;
     uint8_t lastScrollSubtype;
     uint8_t damageFlash;
     uint16_t gameState;
@@ -98,6 +99,8 @@ public:
     PlayerDamageResult applyEnemyDamage(uint8_t damage,
                                         uint16_t attackerObjectIndex);
     bool consumeWeaponAmmo(uint8_t weaponId);
+    void tickWeaponCadence();
+    bool acceptFireAttempt(bool previousFireWasUp);
 
     RuntimeObject *findAt(int tileX, int tileY);
     const RuntimeObject *findAt(int tileX, int tileY) const;
