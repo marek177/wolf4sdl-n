@@ -62,6 +62,19 @@ jobs:
             -o build/n3d-core/n3d_projectile_test
           build/n3d-core/n3d_projectile_test
 
+      - name: Run Nitemare3D OBJECT animation tests
+        run: |
+          g++ -std=c++98 -Wall -Wextra -Werror -pedantic -I. -In3d \
+            tests/n3d_object_animation_test.cpp \
+            n3d/n3d_data.cpp \
+            n3d/n3d_world.cpp \
+            n3d/n3d_collision.cpp \
+            n3d/n3d_door.cpp \
+            n3d/n3d_guard.cpp \
+            n3d/n3d_object.cpp \
+            -o build/n3d-core/n3d_object_animation_test
+          build/n3d-core/n3d_object_animation_test
+
   wolf4sdl-build:
     runs-on: ubuntu-latest
     steps:
