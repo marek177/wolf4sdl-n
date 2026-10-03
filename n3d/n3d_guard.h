@@ -86,6 +86,8 @@ public:
                                  int viewportCenterY,
                                  bool *killed);
 
+    uint32_t nextGameplayRandom();
+
 private:
     struct InitialProfile
     {
