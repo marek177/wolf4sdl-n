@@ -53,7 +53,8 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
     }
     g_objects.bindDoors(&g_doors);
 
-    if(!g_guards.build(g_world, g_episode.map, g_objects, &g_doors, error))
+    if(!g_guards.build(g_world, g_episode.map, g_objects, &g_doors,
+                       g_episode.episode, error))
     {
         unloadRuntime();
         return false;
