@@ -37,6 +37,7 @@ struct ProjectileSlot
     uint8_t sequenceWeapon;
     uint8_t frame;
     uint8_t impactUpdatesRemaining;
+    bool firstUpdatePending;
 
     ProjectileSlot();
 };
