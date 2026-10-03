@@ -20,6 +20,9 @@ struct RuntimeObject
     uint8_t subtype;
     uint8_t objectClass;
     uint8_t renderObjectId;
+    uint8_t animationAlternative;
+    uint8_t animationFrame;
+    uint8_t sequenceObjectId;
     uint8_t properties;
     uint8_t guardIndex;
     int tileX;
@@ -28,6 +31,7 @@ struct RuntimeObject
     int32_t worldY;
     int16_t lastProjectedY;
     uint8_t verticalOffset;
+    uint32_t animationDeadlineMs;
     bool active;
 
     RuntimeObject();
