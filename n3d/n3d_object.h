@@ -31,6 +31,13 @@ struct RuntimeObject
     RuntimeObject();
 };
 
+enum PlayerDamageResult
+{
+    PlayerDamageSuppressed = 0,
+    PlayerDamageNonLethal,
+    PlayerDamageLethal
+};
+
 struct InventoryState
 {
     uint8_t keyMask;
@@ -51,6 +58,11 @@ struct InventoryState
     uint8_t pendingWeapon;
     uint8_t weaponSelectionMode;
     uint8_t lastScrollSubtype;
+    uint8_t damageFlash;
+    uint16_t gameState;
+    uint16_t deathAttackerObjectIndex;
+    bool omnipotent;
+    bool deathTransitionPending;
     uint32_t score;
 
     InventoryState();
@@ -78,6 +90,10 @@ public:
     const std::vector<RuntimeObject> &objects() const { return objects_; }
     std::vector<RuntimeObject> &objects() { return objects_; }
     const InventoryState &inventory() const { return inventory_; }
+    InventoryState &inventory() { return inventory_; }
+
+    PlayerDamageResult applyEnemyDamage(uint8_t damage,
+                                        uint16_t attackerObjectIndex);
 
     RuntimeObject *findAt(int tileX, int tileY);
     const RuntimeObject *findAt(int tileX, int tileY) const;
