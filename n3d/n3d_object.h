@@ -26,6 +26,8 @@ struct RuntimeObject
     int tileY;
     int32_t worldX;
     int32_t worldY;
+    int16_t lastProjectedY;
+    uint8_t verticalOffset;
     bool active;
 
     RuntimeObject();
