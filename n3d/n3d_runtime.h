@@ -50,6 +50,9 @@ void runtimeTickDoorMotion();
 void runtimeTickDoorAutoClose(int playerTileX, int playerTileY);
 void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
                        int difficultyCode);
+void runtimeSetRemoteCannonEnabled(bool enabled);
+bool runtimeRemoteCannonEnabled();
+unsigned runtimeActivateActionSpotDancers();
 
 uint32_t runtimeBeginRenderGeneration();
 void runtimeMarkProjectedObject(size_t objectIndex,
