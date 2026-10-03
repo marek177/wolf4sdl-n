@@ -4,6 +4,7 @@
 #include "n3d_door.h"
 #include "n3d_guard.h"
 #include "n3d_object.h"
+#include "n3d_projectile.h"
 #include "n3d_render_bridge.h"
 
 #include <stddef.h>
@@ -29,6 +30,8 @@ ObjectRuntime *runtimeObjects();
 const ObjectRuntime *runtimeObjectsConst();
 GuardRuntime *runtimeGuards();
 const GuardRuntime *runtimeGuardsConst();
+ProjectileRuntime *runtimeProjectiles();
+const ProjectileRuntime *runtimeProjectilesConst();
 bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out);
 
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData);
@@ -53,6 +56,14 @@ PlayerHitReport runtimeFireHitscan(int32_t playerWorldX,
                                    uint8_t weaponId,
                                    int difficultyCode,
                                    int viewportCenterY);
+ProjectileFireResult runtimeFireProjectile(int32_t playerWorldX,
+                                           int32_t playerWorldY,
+                                           uint8_t weaponId,
+                                           int directionX,
+                                           int directionY);
+ProjectileUpdateReport runtimeTickProjectiles(unsigned substeps,
+                                              int difficultyCode,
+                                              int viewportCenterY);
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
                                  int32_t alongWallFixed,
