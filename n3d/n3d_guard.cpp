@@ -208,6 +208,7 @@ bool GuardRuntime::advanceTokenFrame(GuardRuntimeRecord &guard,
 }
 
 uint16_t GuardRuntime::chooseAlternativeToken(
+    const GuardRuntimeRecord &guard,
     const RuntimeObject &object,
     bool secondTable)
 {
@@ -215,12 +216,10 @@ uint16_t GuardRuntime::chooseAlternativeToken(
     if(!sequence)
         return 0;
 
-    if(sequence->shortcutFlag(secondTable) != 0)
+    if(guard.directionCache == 0 &&
+       sequence->shortcutFlag(secondTable) != 0)
     {
-        const uint16_t shortcut =
-            sequence->alternativeToken(secondTable, 6u);
-        if((shortcut >> 8) != 0)
-            return shortcut;
+        return 7u;
     }
 
     for(unsigned attempts = 0; attempts < 64u; ++attempts)
