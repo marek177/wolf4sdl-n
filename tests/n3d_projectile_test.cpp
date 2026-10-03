@@ -119,6 +119,48 @@ int main()
     const int32_t startX = 3 * 64 + 32;
     const int32_t startY = 5 * 64 + 32;
 
+    // Fire cadence thresholds are [2,1,3,1]. Weapons 0..2 require a
+    // fresh FIRE edge; weapon 3 may repeat while held once its threshold is met.
+    {
+        Fixture f;
+        if(!buildFixture(f)) return 1;
+
+        n3d::InventoryState &inv = f.objects.inventory();
+
+        inv.activeWeapon = 0;
+        if(!require(!f.objects.acceptFireAttempt(true),
+                    "W0 rejects before cadence threshold")) return 1;
+        f.objects.tickWeaponCadence();
+        if(!require(!f.objects.acceptFireAttempt(true),
+                    "W0 still rejects at cadence 1")) return 1;
+        f.objects.tickWeaponCadence();
+        if(!require(f.objects.acceptFireAttempt(true),
+                    "W0 accepts new edge at cadence 2")) return 1;
+        if(!require(inv.fireCadenceCounter == 0,
+                    "accepted cadence attempt resets counter")) return 1;
+
+        f.objects.tickWeaponCadence();
+        f.objects.tickWeaponCadence();
+        if(!require(!f.objects.acceptFireAttempt(false),
+                    "W0 held FIRE does not auto-repeat")) return 1;
+
+        inv.activeWeapon = 2;
+        inv.fireCadenceCounter = 0;
+        f.objects.tickWeaponCadence();
+        f.objects.tickWeaponCadence();
+        if(!require(!f.objects.acceptFireAttempt(true),
+                    "W2 rejects before cadence 3")) return 1;
+        f.objects.tickWeaponCadence();
+        if(!require(f.objects.acceptFireAttempt(true),
+                    "W2 accepts at cadence 3")) return 1;
+
+        inv.activeWeapon = 3;
+        inv.fireCadenceCounter = 0;
+        f.objects.tickWeaponCadence();
+        if(!require(f.objects.acceptFireAttempt(false),
+                    "W3 auto-repeats while FIRE stays held")) return 1;
+    }
+
     // Pool is exactly eight slots and a full pool must not consume ammo.
     {
         Fixture f;
