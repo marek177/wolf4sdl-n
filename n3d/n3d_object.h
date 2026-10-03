@@ -34,6 +34,9 @@ struct InventoryState
     uint8_t keyMask;
     uint8_t idCardMask;
     uint8_t pentagramMask;
+    uint8_t ownedWeapons;
+    uint8_t auxInventory;
+    uint8_t panelCharge;
     uint8_t health;
     uint8_t pistolAmmo;
     uint8_t plasmaAmmo;
@@ -41,6 +44,11 @@ struct InventoryState
     uint8_t crystalBall;
     uint8_t magicEye;
     uint8_t meter;
+    uint8_t bonusCounter;
+    uint8_t activeWeapon;
+    uint8_t pendingWeapon;
+    uint8_t weaponSelectionMode;
+    uint8_t lastScrollSubtype;
     uint32_t score;
 
     InventoryState();
@@ -73,9 +81,12 @@ public:
 
     bool occupiedAt(int tileX, int tileY) const;
     PickupResult touch(int tileX, int tileY);
+    void clampHudState();
 
 private:
     uint8_t subtypeFor(uint8_t objectId, uint8_t objectClass) const;
+    uint8_t *ammoPoolForWeapon(unsigned weapon);
+    uint8_t *ammoPoolForSubtype(unsigned subtype);
     void remove(RuntimeObject &object);
 
     WorldState *world_;
