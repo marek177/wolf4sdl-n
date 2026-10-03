@@ -118,25 +118,12 @@ bool GuardRuntime::build(WorldState &world,
 
         const unsigned spawnSelector = object.subtype;
         guard.facing = static_cast<uint8_t>((spawnSelector & 3u) * 2u);
-        setMovementFromFacing(guard);
 
         const InitialProfile p = initialProfile(object.objectClass);
         guard.strategy = p.strategy;
         guard.state = p.state;
         guard.nextState = p.nextState;
         guard.perceptionMode = p.perceptionMode;
-
-        // The original common tail promotes the initial state to 8 when the
-        // spawn movement vector is non-zero.
-        if((guard.moveX != 0 || guard.moveY != 0) &&
-           object.objectClass != 0x19 &&
-           object.objectClass != 0x21)
-            guard.state = 8;
-        else if(object.objectClass == 0x19 || object.objectClass == 0x21)
-        {
-            guard.moveX = 0;
-            guard.moveY = 0;
-        }
 
         // Navigation markers beneath the actor alter the initial strategy.
         if(object.tileX >= 0 && object.tileY >= 0 &&
@@ -150,8 +137,20 @@ bool GuardRuntime::build(WorldState &world,
                 guard.strategy = 2;
             else if(cell.wallClass == 0x43)
                 guard.strategy = 1;
+        }
 
-            setMovementFromFacing(guard);
+        setMovementFromFacing(guard);
+
+        // Cannon and Dancers have explicit non-moving initialization states.
+        if(object.objectClass == 0x19 || object.objectClass == 0x21)
+        {
+            guard.moveX = 0;
+            guard.moveY = 0;
+        }
+        else if(guard.moveX != 0 || guard.moveY != 0)
+        {
+            // The original common tail promotes moving spawns to state 8.
+            guard.state = 8;
         }
 
         object.guardIndex = static_cast<uint8_t>(guards_.size());
