@@ -61,6 +61,7 @@ SRCS += id_vl.cpp
 SRCS += n3d/n3d_collision.cpp
 SRCS += n3d/n3d_data.cpp
 SRCS += n3d/n3d_door.cpp
+SRCS += n3d/n3d_guard.cpp
 SRCS += n3d/n3d_main.cpp
 SRCS += n3d/n3d_object.cpp
 SRCS += n3d/n3d_preview.cpp
