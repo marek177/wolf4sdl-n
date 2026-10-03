@@ -65,6 +65,7 @@ struct InventoryState
     uint16_t deathAttackerObjectIndex;
     bool omnipotent;
     bool deathTransitionPending;
+    bool endingRequested;
     uint32_t score;
 
     InventoryState();
