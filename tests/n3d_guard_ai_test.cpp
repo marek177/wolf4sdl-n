@@ -450,6 +450,53 @@ int main()
         if(!require(g.timer == 0x18, "unseen strategy-0 timer is 0x18")) return 1;
     }
 
+    // Bat / Dracula-Bat / Ghost vertical bob uses GUARD+0x15 and clamps 10..35.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        o.objectClass = 0x08;
+        o.properties = n3d::objectPropertiesForClass(0x08);
+        g.state = 6;
+        g.timer = 10;
+        g.verticalBobStep = 0;
+        o.verticalOffset = 0;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(o.verticalOffset == 10,
+                    "flying GUARD initializes/clamps bob to minimum 10")) return 1;
+        if(!require(g.verticalBobStep == 1,
+                    "flying GUARD initializes bob direction to +1")) return 1;
+
+        g.state = 6;
+        g.timer = 10;
+        o.verticalOffset = 34;
+        g.verticalBobStep = 1;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(o.verticalOffset == 35,
+                    "flying GUARD reaches upper bob bound 35")) return 1;
+        if(!require(g.verticalBobStep == -1,
+                    "upper bob bound reverses direction")) return 1;
+
+        g.state = 6;
+        g.timer = 10;
+        o.verticalOffset = 11;
+        g.verticalBobStep = -1;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(o.verticalOffset == 10,
+                    "flying GUARD reaches lower bob bound 10")) return 1;
+        if(!require(g.verticalBobStep == 1,
+                    "lower bob bound reverses direction")) return 1;
+    }
+
     // States 2/3/4 use the dedicated SEQDEF words at +34/+36/+38.
     {
         n3d::EpisodeData episode;
