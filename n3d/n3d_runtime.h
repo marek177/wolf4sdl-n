@@ -61,9 +61,12 @@ ProjectileFireResult runtimeFireProjectile(int32_t playerWorldX,
                                            uint8_t weaponId,
                                            int directionX,
                                            int directionY);
-ProjectileUpdateReport runtimeTickProjectiles(unsigned substeps,
+ProjectileUpdateReport runtimeTickProjectiles(uint32_t nowMs,
+                                              unsigned substeps,
                                               int difficultyCode,
                                               int viewportCenterY);
+bool runtimeProjectileTexture(size_t slotIndex,
+                              ObjectTextureView &out);
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
                                  int32_t alongWallFixed,
