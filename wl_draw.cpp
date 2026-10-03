@@ -1633,7 +1633,7 @@ static void N3D_DrawObjectSprites(void)
             continue;
 
         n3d::ObjectTextureView texture;
-        if(!n3d::runtimeObjectTexture(object.renderObjectId, texture))
+        if(!n3d::runtimeWorldObjectTexture(i, texture))
             continue;
 
         objtype projected;
@@ -1659,7 +1659,7 @@ static void N3D_DrawObjectSprites(void)
         const N3DVisibleObject &item = visible[i];
 
         n3d::ObjectTextureView texture;
-        if(!n3d::runtimeObjectTexture(item.object->renderObjectId, texture))
+        if(!n3d::runtimeWorldObjectTexture(item.objectIndex, texture))
             continue;
 
         // Match Wolf's 64-pixel sprite projection scale first, then preserve
