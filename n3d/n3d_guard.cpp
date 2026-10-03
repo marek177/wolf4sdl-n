@@ -1168,6 +1168,20 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
 
         switch(guard.state)
         {
+            case 0:
+                if(guard.timer > 0)
+                    --guard.timer;
+                if(guard.timer == 0)
+                    guard.state = guard.nextState;
+                break;
+
+            case 1:
+                if(guard.timer > 0)
+                    --guard.timer;
+                if(guard.timer == 0)
+                    guard.state = 2;
+                break;
+
             case 2:
                 // Sequence setup/sound are presentation layers. The recovered
                 // state transition itself enters perception state 3.
@@ -1256,6 +1270,31 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 state8Reacquire = true;
                 applyNavigationMarker(guard, object);
                 shouldMove = true;
+                break;
+
+            case 9:
+                finalizeDeath(guard, object);
+                break;
+
+            case 0x12:
+                if(object.verticalOffset >= 5)
+                    object.verticalOffset =
+                        static_cast<uint8_t>(object.verticalOffset - 5);
+                else
+                    object.verticalOffset = 0;
+
+                if(guard.timer > 0)
+                    --guard.timer;
+
+                if(guard.timer == 0 && object.verticalOffset == 0)
+                    guard.state = guard.nextState;
+                break;
+
+            case 0x15:
+                if(guard.timer > 0)
+                    --guard.timer;
+                if(guard.timer == 0)
+                    guard.state = guard.nextState;
                 break;
 
             default:
