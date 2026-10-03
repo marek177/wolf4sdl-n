@@ -24,8 +24,9 @@ bool writeSyntheticMap(const char *path)
     // wall ID 1 -> ordinary blocking wall class 1
     bytes[0x002 + 1] = 0x01;
 
-    // object ID 1 -> START class 2
-    bytes[0x102 + 1] = 0x02;
+    // object IDs 1..4 -> START class 2 (N/E/S/W)
+    for(int id = 1; id <= 4; ++id)
+        bytes[0x102 + id] = 0x02;
 
     // object IDs 0x90..0x93 -> GUARD4/Skeleton class 0x0B.
     for(int id = 0x90; id <= 0x93; ++id)
