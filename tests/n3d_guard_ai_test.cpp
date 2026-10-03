@@ -1,4 +1,5 @@
 #include "n3d/n3d_data.h"
+#include "n3d/n3d_collision.h"
 #include "n3d/n3d_door.h"
 #include "n3d/n3d_guard.h"
 #include "n3d/n3d_object.h"
