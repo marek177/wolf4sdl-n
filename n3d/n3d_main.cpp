@@ -87,6 +87,10 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
     }
     printf("  world OBJECTs   : %u / 350 (%u collectible)\n",
            activeObjects, collectibleObjects);
+
+    const n3d::GuardRuntime *guards = n3d::runtimeGuardsConst();
+    printf("  GUARD records   : %u / 100\n",
+           guards ? (unsigned)guards->guards().size() : 0u);
     if(objects)
     {
         const n3d::InventoryState &inv = objects->inventory();
@@ -96,7 +100,7 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
                (unsigned)inv.pentagramMask,
                (unsigned)inv.ownedWeapons);
     }
-    printf("\nStage 7 complete: persistent Nitemare3D runtime includes the recovered collectible dispatcher through class 0x3D.\n");
+    printf("\nStage 8 complete: runtime includes collectible handling plus GUARD spawn/facing/occupancy preview movement.\n");
 
     return 0;
 }
