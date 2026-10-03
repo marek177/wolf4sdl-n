@@ -19,7 +19,9 @@ struct RuntimeObject
     uint8_t objectId;
     uint8_t subtype;
     uint8_t objectClass;
+    uint8_t renderObjectId;
     uint8_t properties;
+    uint8_t guardIndex;
     int tileX;
     int tileY;
     int32_t worldX;
