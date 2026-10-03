@@ -54,7 +54,7 @@ GuardRuntimeRecord::GuardRuntimeRecord()
 GuardRuntime::GuardRuntime()
     : world_(0), map_(0), img_(0), objects_(0), doors_(0),
       previewRng_(0x4e334431UL), episode_(1), hamersteinOverride_(false),
-      renderGeneration_(1)
+      cannonAttackEnabled_(true), renderGeneration_(1)
 {
 }
 
@@ -305,6 +305,7 @@ bool GuardRuntime::build(WorldState &world,
     renderGeneration_ = 1;
     episode_ = episode;
     hamersteinOverride_ = false;
+    cannonAttackEnabled_ = true;
 
     std::vector<RuntimeObject> &runtimeObjects = objects.objects();
 
@@ -649,6 +650,107 @@ void GuardRuntime::updateFlyingBob(GuardRuntimeRecord &guard,
 
     object.verticalOffset =
         static_cast<uint8_t>(next);
+}
+
+void GuardRuntime::beginState13Displacement(
+    GuardRuntimeRecord &guard)
+{
+    static const int8_t dx[8] =
+        {0, 8, 8, 0, 0, -8, -8, 0};
+    static const int8_t dy[8] =
+        {-8, 0, 0, 8, 8, 0, 0, -8};
+
+    guard.timer =
+        static_cast<uint16_t>(
+            nextPreviewRandom() % 0x50u + 8u);
+    guard.state = 0x13;
+
+    const unsigned facing = guard.facing & 7u;
+    guard.moveX = dx[facing];
+    guard.moveY = dy[facing];
+}
+
+void GuardRuntime::updateState13Displacement(
+    GuardRuntimeRecord &guard,
+    RuntimeObject &object,
+    int32_t playerWorldX,
+    int32_t playerWorldY)
+{
+    if(!world_ || !map_)
+        return;
+
+    const uint16_t oldTimer = guard.timer;
+    guard.timer = static_cast<uint16_t>(guard.timer - 1u);
+
+    if(oldTimer == 0)
+    {
+        guard.strategy = 0;
+        guard.state = 2;
+        return;
+    }
+
+    // The original emits its scripted wall/event effect when the NEW timer
+    // becomes exactly 8. It deliberately does not move in that update.
+    if(guard.timer == 8)
+        return;
+
+    if(guard.timer >= 8)
+        return;
+
+    const int32_t newX =
+        object.worldX + static_cast<int32_t>(guard.moveX);
+    const int32_t newY =
+        object.worldY + static_cast<int32_t>(guard.moveY);
+
+    const int oldTileX = object.tileX;
+    const int oldTileY = object.tileY;
+    const int newTileX =
+        static_cast<int>(worldToTile(newX));
+    const int newTileY =
+        static_cast<int>(worldToTile(newY));
+
+    if(newTileX < 0 || newTileY < 0 ||
+       newTileX >= WorldState::Width ||
+       newTileY >= WorldState::Height)
+        return;
+
+    if(newTileX != oldTileX || newTileY != oldTileY)
+    {
+        const int playerTileX =
+            static_cast<int>(worldToTile(playerWorldX));
+        const int playerTileY =
+            static_cast<int>(worldToTile(playerWorldY));
+
+        if(newTileX == playerTileX &&
+           newTileY == playerTileY)
+            return;
+
+        WorldCell &destination =
+            world_->at(static_cast<size_t>(newTileX),
+                       static_cast<size_t>(newTileY));
+
+        if(destination.objectId != 0)
+            return;
+
+        if(oldTileX >= 0 && oldTileY >= 0 &&
+           oldTileX < WorldState::Width &&
+           oldTileY < WorldState::Height)
+        {
+            WorldCell &oldCell =
+                world_->at(static_cast<size_t>(oldTileX),
+                           static_cast<size_t>(oldTileY));
+            oldCell.objectId = 0;
+            oldCell.objectClass = map_->objectClass(0);
+        }
+
+        destination.objectId = object.objectId;
+        destination.objectClass = object.objectClass;
+    }
+
+    object.worldX = newX;
+    object.worldY = newY;
+    object.tileX = newTileX;
+    object.tileY = newTileY;
 }
 
 void GuardRuntime::applyNavigationMarker(GuardRuntimeRecord &guard,
