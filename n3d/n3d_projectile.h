@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <vector>
 
 namespace n3d
 {
@@ -46,6 +47,20 @@ struct ProjectileSlot
     ProjectileSlot();
 };
 
+struct ExplodingWallRecord
+{
+    int tileX;
+    int tileY;
+    uint8_t sourceWallId;
+    uint8_t sourceWallClass;
+    uint8_t sequenceWallId;
+    uint8_t frame;
+    uint32_t animationDeadlineMs;
+    bool active;
+
+    ExplodingWallRecord();
+};
+
 struct ProjectileUpdateReport
 {
     unsigned impacts;
@@ -74,6 +89,16 @@ public:
     const ProjectileSlot &slot(size_t index) const { return slots_[index]; }
     ProjectileSlot &slot(size_t index) { return slots_[index]; }
 
+    const std::vector<ExplodingWallRecord> &explodingWalls() const
+    {
+        return explodingWalls_;
+    }
+    const ExplodingWallRecord *explodingWallAt(int tileX,
+                                               int tileY) const;
+    bool explodingWallVisual(int tileX, int tileY,
+                             uint8_t &wallId,
+                             unsigned &frameIndex) const;
+
     ProjectileFireResult fire(int32_t playerWorldX,
                               int32_t playerWorldY,
                               uint8_t currentWeapon,
@@ -88,6 +113,13 @@ public:
     unsigned activeCount() const;
 
 private:
+    bool startExplodingWall(int tileX, int tileY,
+                            uint8_t wallId,
+                            uint8_t wallClass,
+                            uint32_t nowMs);
+    void updateExplodingWalls(uint32_t nowMs);
+    int firstWallIdForClass(uint8_t wallClass) const;
+
     bool collide(ProjectileSlot &slot,
                  int32_t candidateX,
                  int32_t candidateY,
@@ -109,6 +141,7 @@ private:
     const ImgArchive *img_;
     uint8_t missileBaseObjectId_;
     ProjectileSlot slots_[SlotCount];
+    std::vector<ExplodingWallRecord> explodingWalls_;
 };
 
 } // namespace n3d
