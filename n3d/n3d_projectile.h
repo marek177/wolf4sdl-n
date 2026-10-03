@@ -11,6 +11,9 @@ class WorldState;
 class ObjectRuntime;
 class DoorRuntime;
 class GuardRuntime;
+class MapArchive;
+class ImgArchive;
+struct ImgSequenceDef;
 
 enum ProjectileFireResult
 {
@@ -35,8 +38,9 @@ struct ProjectileSlot
     int32_t worldY;
     uint8_t verticalOffset;
     uint8_t sequenceWeapon;
+    uint8_t sequenceObjectId;
     uint8_t frame;
-    uint8_t impactUpdatesRemaining;
+    uint32_t animationDeadlineMs;
     bool firstUpdatePending;
 
     ProjectileSlot();
@@ -61,7 +65,9 @@ public:
     void bind(WorldState *world,
               ObjectRuntime *objects,
               DoorRuntime *doors,
-              GuardRuntime *guards);
+              GuardRuntime *guards,
+              const MapArchive *map,
+              const ImgArchive *img);
 
     void clear();
 
@@ -74,7 +80,8 @@ public:
                               int directionX,
                               int directionY);
 
-    ProjectileUpdateReport tick(unsigned substeps,
+    ProjectileUpdateReport tick(uint32_t nowMs,
+                                unsigned substeps,
                                 int difficultyCode,
                                 int viewportCenterY);
 
@@ -84,14 +91,23 @@ private:
     bool collide(ProjectileSlot &slot,
                  int32_t candidateX,
                  int32_t candidateY,
+                 uint32_t nowMs,
                  int difficultyCode,
                  int viewportCenterY,
                  ProjectileUpdateReport &report);
+    uint8_t sequenceObjectIdForWeapon(uint8_t weaponId,
+                                      bool impact) const;
+    const ImgSequenceDef *sequenceFor(const ProjectileSlot &slot) const;
+    void advanceFlightAnimation(ProjectileSlot &slot, uint32_t nowMs);
+    bool advanceImpactAnimation(ProjectileSlot &slot, uint32_t nowMs);
 
     WorldState *world_;
     ObjectRuntime *objects_;
     DoorRuntime *doors_;
     GuardRuntime *guards_;
+    const MapArchive *map_;
+    const ImgArchive *img_;
+    uint8_t missileBaseObjectId_;
     ProjectileSlot slots_[SlotCount];
 };
 
