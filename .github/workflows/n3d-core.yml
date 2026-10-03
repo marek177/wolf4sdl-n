@@ -26,6 +26,7 @@ jobs:
             n3d/n3d_door.cpp \
             n3d/n3d_guard.cpp \
             n3d/n3d_object.cpp \
+            n3d/n3d_projectile.cpp \
             n3d/n3d_render_bridge.cpp \
             n3d/n3d_runtime.cpp \
             n3d/n3d_main.cpp
