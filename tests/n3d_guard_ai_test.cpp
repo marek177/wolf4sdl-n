@@ -92,6 +92,37 @@ bool writeSyntheticImg(const char *path)
     for(unsigned frame = 0; frame < 48; ++frame)
         appendTinyFrame(bytes, static_cast<unsigned char>(0x20 + frame));
 
+    // Dancers presentation family class 0x21 at object ID 0xA0.
+    const unsigned char dancerId = 0xA0;
+    const unsigned long dancerStream =
+        static_cast<unsigned long>(bytes.size());
+    writeU32(bytes,
+             0x400u + static_cast<unsigned>(dancerId) * 4u,
+             dancerStream);
+
+    const size_t dancerSeq =
+        static_cast<size_t>(n3d::ImgArchive::HighSequenceBankOffset) +
+        static_cast<size_t>(dancerId) *
+        static_cast<size_t>(n3d::ImgArchive::SequenceRecordBytes);
+
+    writeU16(bytes, dancerSeq + 0, 100);
+    bytes[dancerSeq + 2] = 32;
+    bytes[dancerSeq + 3] = 0;
+
+    for(unsigned dir = 0; dir < 8; ++dir)
+    {
+        writeU16(bytes, dancerSeq + 0x04u + dir * 2u,
+                 (2u + dir) | (2u << 8));
+        writeU16(bytes, dancerSeq + 0x14u + dir * 2u,
+                 (10u + dir) | (2u << 8));
+        writeU16(bytes, dancerSeq + 0x24u + dir * 2u,
+                 (20u + dir) | (2u << 8));
+    }
+
+    for(unsigned frame = 0; frame < 32; ++frame)
+        appendTinyFrame(bytes,
+                        static_cast<unsigned char>(0x60 + frame));
+
     std::ofstream f(path, std::ios::binary);
     if(!f)
         return false;
@@ -118,6 +149,7 @@ bool writeSyntheticMap(const char *path)
     // RETREAT class base 11 with eight directions plus variant 8.
     for(int id = 11; id <= 19; ++id)
         bytes[0x002 + id] = 0x42;
+    bytes[0x002 + 20] = 0x46; // ACTIONSPOT
 
     // object IDs 1..4 -> START class 2 (N/E/S/W)
     for(int id = 1; id <= 4; ++id)
@@ -126,6 +158,7 @@ bool writeSyntheticMap(const char *path)
     // object IDs 0x90..0x93 -> GUARD4/Skeleton class 0x0B.
     for(int id = 0x90; id <= 0x93; ++id)
         bytes[0x102 + id] = 0x0B;
+    bytes[0x102 + 0xA0] = 0x21; // Dancers presentation family
 
     const size_t base = n3d::MapArchive::HeaderSize;
 
@@ -495,6 +528,110 @@ int main()
                     "flying GUARD reaches lower bob bound 10")) return 1;
         if(!require(g.verticalBobStep == 1,
                     "lower bob bound reverses direction")) return 1;
+    }
+
+    // Strategy-1 low-HP FLEE chooses the nearest LOS-valid door,
+    // moves toward its cell center, uses timer 0x10 and moves immediately.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        world.at(3, 5).wallId = 2;
+        world.at(3, 5).wallClass = 0x31;
+
+        std::string error;
+        if(!doors.build(world, episode.map, error))
+        {
+            std::cerr << error << "\n";
+            return 1;
+        }
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        g.strategy = 1;
+        g.state = 5;
+        g.hp = 100;
+        g.moveX = 0;
+        g.moveY = 0;
+
+        const int32_t beforeX = o.worldX;
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(g.state == 6 && g.timer == 0x10,
+                    "FLEE enters state 6 with timer 0x10")) return 1;
+        if(!require(g.moveX == -8 && g.moveY == 0,
+                    "FLEE points toward nearest west door center")) return 1;
+        if(!require(o.worldX == beforeX - 8,
+                    "FLEE performs immediate first movement step")) return 1;
+    }
+
+    // ACTIONSPOT/Dancers activation uses the Dancers resource family and
+    // class-specific +0x24 token for original Skeleton class 0x0B.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        n3d::RuntimeObject &o = objects.objects()[g.objectIndex];
+
+        world.at(5, 5).wallId = 20;
+        world.at(5, 5).wallClass = 0x46;
+
+        const uint8_t oldSequence = o.sequenceObjectId;
+        const unsigned activated =
+            guards.activateActionSpotDancers();
+
+        if(!require(activated == 1,
+                    "ACTIONSPOT activates exactly one synthetic guard")) return 1;
+        if(!require(g.state == 0x14 && g.timer == 0x70,
+                    "ACTIONSPOT enters state 0x14 with timer 0x70")) return 1;
+        if(!require(g.savedSequenceObjectId == oldSequence,
+                    "ACTIONSPOT saves original sequence selector")) return 1;
+        if(!require(o.sequenceObjectId == 0xA0,
+                    "ACTIONSPOT switches to Dancers class 0x21 resource")) return 1;
+        if(!require(g.sequenceToken == (20u | (2u << 8)) &&
+                    o.animationFrame == 20,
+                    "Skeleton Dancer selects Dancers +0x24 token")) return 1;
+        if(!require(world.at(5, 5).objectId == 0,
+                    "ACTIONSPOT activation clears MAP object byte")) return 1;
+        if(!require(g.moveX == 3,
+                    "ACTIONSPOT sets scripted X movement component to 3")) return 1;
+
+        g.timer = 0x61;
+        const int32_t beforeWait = o.worldX;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.timer == 0x60 && o.worldX == beforeWait,
+                    "ACTIONSPOT does not move at timer 0x60")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.timer == 0x5F && o.worldX == beforeWait + 3,
+                    "ACTIONSPOT begins movement below timer 0x60")) return 1;
+
+        g.timer = 1;
+        const int32_t beforeLastMove = o.worldX;
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 0x14 && g.timer == 0 &&
+                    o.worldX == beforeLastMove + 3,
+                    "ACTIONSPOT timer 1 performs final movement before restore")) return 1;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+        if(!require(g.state == 6 && g.timer == 1 && g.strategy == 0,
+                    "ACTIONSPOT expiry restores generic state 6 timer 1")) return 1;
+        if(!require(o.sequenceObjectId == oldSequence,
+                    "ACTIONSPOT restore returns original sequence selector")) return 1;
+        if(!require(g.sequenceToken == (24u | (2u << 8)),
+                    "ACTIONSPOT restore selects original +0x24 movement token")) return 1;
     }
 
     // Strategy-3 perception enters state 0x13 with RNG timer 8..87 and
