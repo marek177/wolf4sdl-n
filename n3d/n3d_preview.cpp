@@ -187,7 +187,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
     printf("Nitemare3D Wolf4SDL preview: E%dM%d\n", episode, level);
     printf("Controls: W/Up forward, S/Down backward, A/D strafe, Left/Right turn, Shift fast, E/Space use, Esc quit\n");
     printf("Collision: recovered 27/28-unit probes; door states 0/4 pass, states 1/2/3 block\n");
-    printf("GUARD preview: recovered spawn/init/facing plus basic state-6/7/8 movement; attack/perception pending\n");
+    printf("GUARD preview: recovered LOS/proximity, states 2/3/5/6/7/8 and strategy-0 chase; attack execution pending\n");
 
     Uint32 nextDoorMotion = SDL_GetTicks() + 39;
     Uint32 nextDoorSlow = SDL_GetTicks() + 122;
@@ -341,7 +341,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         if(static_cast<Sint32>(now - nextDoorSlow) >= 0)
         {
             n3d::runtimeTickDoorAutoClose(player->tilex, player->tiley);
-            n3d::runtimeTickGuards(player->x >> 10, player->y >> 10);
+            n3d::runtimeTickGuards(player->x >> 10, player->y >> 10, 1);
             nextDoorSlow = now + 122;
         }
 
