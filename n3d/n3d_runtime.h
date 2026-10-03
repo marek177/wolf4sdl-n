@@ -42,6 +42,18 @@ void runtimeTickDoorAutoClose(int playerTileX, int playerTileY);
 void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
                        int difficultyCode);
 
+uint32_t runtimeBeginRenderGeneration();
+void runtimeMarkProjectedObject(size_t objectIndex,
+                                int projectedBaselineY,
+                                int spriteLeft,
+                                int spriteRight,
+                                int centerX);
+PlayerHitReport runtimeFireHitscan(int32_t playerWorldX,
+                                   int32_t playerWorldY,
+                                   uint8_t weaponId,
+                                   int difficultyCode,
+                                   int viewportCenterY);
+
 const uint8_t *runtimeWallColumn(uint8_t wallId,
                                  int32_t alongWallFixed,
                                  bool reverse,
