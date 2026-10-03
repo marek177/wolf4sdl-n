@@ -219,7 +219,7 @@ uint16_t GuardRuntime::chooseAlternativeToken(
     if(guard.directionCache == 0 &&
        sequence->shortcutFlag(secondTable) != 0)
     {
-        return 7u;
+        return sequence->alternativeToken(secondTable, 7u);
     }
 
     for(unsigned attempts = 0; attempts < 64u; ++attempts)
