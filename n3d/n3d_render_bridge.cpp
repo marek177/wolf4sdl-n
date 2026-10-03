@@ -31,6 +31,31 @@ bool ObjectTextureBridge::texture(uint8_t objectId, ObjectTextureView &out) cons
     return true;
 }
 
+bool ObjectTextureBridge::sequenceTexture(uint8_t objectId,
+                                          unsigned frameIndex,
+                                          ObjectTextureView &out) const
+{
+    out = ObjectTextureView();
+
+    const ImgFrame *frame =
+        img_.objectSequenceFrame(objectId, frameIndex);
+    if(!frame || frame->width == 0 || frame->height == 0 ||
+       frame->pixels.empty())
+        return false;
+
+    const size_t expected =
+        static_cast<size_t>(frame->width) *
+        static_cast<size_t>(frame->height);
+    if(frame->pixels.size() != expected)
+        return false;
+
+    out.pixels = &frame->pixels[0];
+    out.width = frame->width;
+    out.height = frame->height;
+    out.fileOffset = frame->fileOffset;
+    return true;
+}
+
 RenderMap::RenderMap() : cells(CellCount)
 {
 }
