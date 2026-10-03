@@ -86,6 +86,9 @@ private:
                           int32_t playerWorldY,
                           bool bypassFacing,
                           bool testObjectPlane) const;
+    void applyNavigationMarker(GuardRuntimeRecord &guard,
+                               const RuntimeObject &object);
+    int firstWallIdForClass(uint8_t wallClass) const;
     void planStrategy0(GuardRuntimeRecord &guard,
                        const RuntimeObject &object,
                        int32_t playerWorldX,
