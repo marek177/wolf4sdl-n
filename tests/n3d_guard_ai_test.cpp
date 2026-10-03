@@ -426,6 +426,53 @@ int main()
                     "killing GUARD enters terminal state 0x0B")) return 1;
     }
 
+    // Original distance helper promotes sqrt(2) to distance 2.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 4;
+        g.facing = 3;
+        objects.inventory().health = 100;
+
+        const int32_t diagonalPlayerX = 6 * 64 + 32;
+        const int32_t diagonalPlayerY = 6 * 64 + 32;
+        guards.tickPreviewAI(diagonalPlayerX, diagonalPlayerY, 1);
+
+        // sqrt(1^2+1^2) uses original metric -> 2; base=50; Skeleton /4 = 12.
+        if(!require(objects.inventory().health == 88,
+                    "original distance metric promotes diagonal sqrt(2) to 2")) return 1;
+    }
+
+    // Existing game state 2 suppresses damage and preserves state-4 tail.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 4;
+        objects.inventory().health = 50;
+        objects.inventory().gameState = 2;
+
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(objects.inventory().health == 50,
+                    "game state 2 suppresses repeated enemy damage")) return 1;
+        if(!require(g.state == 4,
+                    "game state 2 returns before state-5 scheduling")) return 1;
+    }
+
     // Omnipotent suppresses HP/state mutation after damage is computed.
     {
         n3d::EpisodeData episode;
