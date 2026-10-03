@@ -116,6 +116,71 @@ const char *DoorUseName(n3d::DoorUseResult result)
     return "unknown";
 }
 
+
+void FirePreviewWeapon(objtype *ob)
+{
+    n3d::ObjectRuntime *objects = n3d::runtimeObjects();
+    if(!objects)
+        return;
+
+    n3d::InventoryState &inv = objects->inventory();
+    const uint8_t weapon = inv.activeWeapon;
+
+    if(weapon == 2)
+    {
+        if(!objects->consumeWeaponAmmo(2))
+        {
+            printf("PISTOL: no ammo\n");
+            return;
+        }
+
+        const n3d::PlayerHitReport hit =
+            n3d::runtimeFireHitscan(ob->x >> 10,
+                                   ob->y >> 10,
+                                   2, 1, 80);
+        printf("PISTOL: hits=%u kills=%u scoreDelta=%ld ammo=%u\n",
+               hit.hitCount,
+               hit.killCount,
+               (long)hit.scoreDelta,
+               (unsigned)inv.pistolAmmo);
+        return;
+    }
+
+    if(weapon != 0 && weapon != 1 && weapon != 3)
+        return;
+
+    const int directionX =
+        static_cast<int>(costable[ob->angle] / 4);
+    const int directionY =
+        -static_cast<int>(sintable[ob->angle] / 4);
+
+    const n3d::ProjectileFireResult fire =
+        n3d::runtimeFireProjectile(ob->x >> 10,
+                                   ob->y >> 10,
+                                   weapon,
+                                   directionX,
+                                   directionY);
+
+    if(fire == n3d::ProjectileFireAccepted)
+    {
+        printf("PROJECTILE weapon %u: accepted, active=%u plasma=%u wand=%u\n",
+               (unsigned)weapon,
+               n3d::runtimeProjectilesConst()
+                   ? n3d::runtimeProjectilesConst()->activeCount()
+                   : 0u,
+               (unsigned)inv.plasmaAmmo,
+               (unsigned)inv.wandAmmo);
+    }
+    else if(fire == n3d::ProjectileFirePoolFull)
+    {
+        printf("PROJECTILE: pool full, ammo preserved\n");
+    }
+    else if(fire == n3d::ProjectileFireNoAmmo)
+    {
+        printf("PROJECTILE: no ammo\n");
+    }
+}
+
 }
 
 extern void BuildTables(void);
@@ -195,6 +260,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
 
     bool running = true;
     bool deathReported = false;
+    bool previousFireDown = false;
     while(running)
     {
         SDL_Event event;
@@ -245,70 +311,7 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                     }
                 }
 
-                if(event.key.keysym.sym == SDLK_f)
-                {
-                    n3d::InventoryState &inv = objects->inventory();
-                    if(inv.activeWeapon == 2)
-                    {
-                        if(inv.pistolAmmo != 0 || inv.omnipotent)
-                        {
-                            if(!inv.omnipotent)
-                                --inv.pistolAmmo;
 
-                            const n3d::PlayerHitReport hit =
-                                n3d::runtimeFireHitscan(player->x >> 10,
-                                                       player->y >> 10,
-                                                       2, 1, 80);
-                            printf("PISTOL: hits=%u kills=%u scoreDelta=%ld ammo=%u\n",
-                                   hit.hitCount,
-                                   hit.killCount,
-                                   (long)hit.scoreDelta,
-                                   (unsigned)inv.pistolAmmo);
-                        }
-                        else
-                        {
-                            printf("PISTOL: no ammo\n");
-                        }
-                    }
-                    else if(inv.activeWeapon == 0 ||
-                            inv.activeWeapon == 1 ||
-                            inv.activeWeapon == 3)
-                    {
-                        // Wolf4SDL uses 16.16 direction tables. Shift to the
-                        // original N3D-style ~14-bit trig scale; DDA depends
-                        // on the component ratio and signs.
-                        const int directionX =
-                            static_cast<int>(costable[player->angle] >> 2);
-                        const int directionY =
-                            -static_cast<int>(sintable[player->angle] >> 2);
-
-                        const n3d::ProjectileFireResult fire =
-                            n3d::runtimeFireProjectile(player->x >> 10,
-                                                       player->y >> 10,
-                                                       inv.activeWeapon,
-                                                       directionX,
-                                                       directionY);
-
-                        if(fire == n3d::ProjectileFireAccepted)
-                        {
-                            printf("PROJECTILE weapon %u: accepted, active=%u plasma=%u wand=%u\n",
-                                   (unsigned)inv.activeWeapon,
-                                   n3d::runtimeProjectilesConst()
-                                       ? n3d::runtimeProjectilesConst()->activeCount()
-                                       : 0u,
-                                   (unsigned)inv.plasmaAmmo,
-                                   (unsigned)inv.wandAmmo);
-                        }
-                        else if(fire == n3d::ProjectileFirePoolFull)
-                        {
-                            printf("PROJECTILE: pool full, ammo preserved\n");
-                        }
-                        else if(fire == n3d::ProjectileFireNoAmmo)
-                        {
-                            printf("PROJECTILE: no ammo\n");
-                        }
-                    }
-                }
             }
         }
 
@@ -316,6 +319,15 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         const n3d::ObjectRuntime *playerRuntime = n3d::runtimeObjectsConst();
         const bool playerAlive =
             !playerRuntime || playerRuntime->inventory().gameState != 2;
+
+        const bool fireDown = playerAlive && keys[SDLK_f];
+        n3d::ObjectRuntime *fireRuntime = n3d::runtimeObjects();
+        if(fireDown && fireRuntime &&
+           fireRuntime->acceptFireAttempt(!previousFireDown))
+        {
+            FirePreviewWeapon(player);
+        }
+        previousFireDown = fireDown;
 
         if(playerAlive && keys[SDLK_LEFT])
         {
@@ -459,6 +471,10 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
         if(static_cast<Sint32>(now - nextDoorSlow) >= 0)
         {
             n3d::runtimeTickDoorAutoClose(player->tilex, player->tiley);
+
+            n3d::ObjectRuntime *cadenceRuntime = n3d::runtimeObjects();
+            if(cadenceRuntime)
+                cadenceRuntime->tickWeaponCadence();
 
             const n3d::ObjectRuntime *beforeCombat = n3d::runtimeObjectsConst();
             const uint8_t oldHealth =
