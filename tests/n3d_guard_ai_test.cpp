@@ -63,7 +63,8 @@ bool buildFixture(n3d::EpisodeData &episode,
                   n3d::WorldState &world,
                   n3d::ObjectRuntime &objects,
                   n3d::DoorRuntime &doors,
-                  n3d::GuardRuntime &guards)
+                  n3d::GuardRuntime &guards,
+                  int episodeNumber = 1)
 {
     const char *path = "n3d_guard_ai_test.map";
     if(!writeSyntheticMap(path))
@@ -76,7 +77,7 @@ bool buildFixture(n3d::EpisodeData &episode,
         return false;
     }
 
-    episode.episode = 1;
+    episode.episode = episodeNumber;
     if(!n3d::buildWorld(episode, 0, world, error))
     {
         std::cerr << error << "\n";
@@ -651,7 +652,7 @@ int main()
         n3d::ObjectRuntime objects;
         n3d::DoorRuntime doors;
         n3d::GuardRuntime guards;
-        if(!buildFixture(episode, world, objects, doors, guards))
+        if(!buildFixture(episode, world, objects, doors, guards, 3))
             return 1;
 
         n3d::GuardRuntimeRecord &g = guards.guards()[0];
