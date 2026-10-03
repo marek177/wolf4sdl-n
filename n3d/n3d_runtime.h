@@ -2,6 +2,7 @@
 #define N3D_RUNTIME_H
 
 #include "n3d_door.h"
+#include "n3d_guard.h"
 #include "n3d_object.h"
 #include "n3d_render_bridge.h"
 
@@ -26,6 +27,8 @@ DoorRuntime *runtimeDoors();
 const DoorRuntime *runtimeDoorsConst();
 ObjectRuntime *runtimeObjects();
 const ObjectRuntime *runtimeObjectsConst();
+GuardRuntime *runtimeGuards();
+const GuardRuntime *runtimeGuardsConst();
 bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out);
 
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData);
@@ -36,6 +39,7 @@ bool runtimeObjectOccupiedQuery(int tileX, int tileY, void *userData);
 DoorUseResult runtimeUseDoor(int tileX, int tileY, int playerSector);
 void runtimeTickDoorMotion();
 void runtimeTickDoorAutoClose(int playerTileX, int playerTileY);
+void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY);
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
                                  int32_t alongWallFixed,
