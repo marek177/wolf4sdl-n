@@ -23,6 +23,27 @@ struct WallTextureView
     bool valid() const { return pixels != 0 && width != 0 && height == 64; }
 };
 
+struct ObjectTextureView
+{
+    const uint8_t *pixels;
+    unsigned width;
+    unsigned height;
+    uint32_t fileOffset;
+
+    ObjectTextureView() : pixels(0), width(0), height(0), fileOffset(0) {}
+    bool valid() const { return pixels != 0 && width != 0 && height != 0; }
+};
+
+class ObjectTextureBridge
+{
+public:
+    explicit ObjectTextureBridge(const ImgArchive &img) : img_(img) {}
+    bool texture(uint8_t objectId, ObjectTextureView &out) const;
+
+private:
+    const ImgArchive &img_;
+};
+
 struct RenderCell
 {
     uint8_t wallId;
