@@ -52,7 +52,10 @@ public:
     const std::vector<GuardRuntimeRecord> &guards() const { return guards_; }
     std::vector<GuardRuntimeRecord> &guards() { return guards_; }
 
-    void tickPreviewMovement(int32_t playerWorldX, int32_t playerWorldY);
+    // Preview implementation of the statically recovered perception and
+    // strategy-0 state flow. Attack execution remains a separate layer.
+    void tickPreviewAI(int32_t playerWorldX, int32_t playerWorldY,
+                       int difficultyCode);
 
 private:
     struct InitialProfile
@@ -67,6 +70,29 @@ private:
     void setMovementFromFacing(GuardRuntimeRecord &guard);
     void updateRenderFacing(RuntimeObject &object,
                             const GuardRuntimeRecord &guard);
+    bool testLineOfSight(const GuardRuntimeRecord &guard,
+                         const RuntimeObject &object,
+                         int32_t playerWorldX,
+                         int32_t playerWorldY,
+                         bool bypassFacing,
+                         bool testObjectPlane) const;
+    bool traceGridLine(int startX, int startY,
+                       int deltaX, int deltaY,
+                       int maxSteps,
+                       bool testObjectPlane) const;
+    bool updatePerception(GuardRuntimeRecord &guard,
+                          const RuntimeObject &object,
+                          int32_t playerWorldX,
+                          int32_t playerWorldY,
+                          bool bypassFacing,
+                          bool testObjectPlane) const;
+    void planStrategy0(GuardRuntimeRecord &guard,
+                       const RuntimeObject &object,
+                       int32_t playerWorldX,
+                       int32_t playerWorldY,
+                       int difficultyCode);
+    uint32_t nextPreviewRandom();
+
     bool candidateBlocked(size_t guardIndex,
                           int32_t worldX,
                           int32_t worldY,
@@ -83,6 +109,7 @@ private:
     ObjectRuntime *objects_;
     DoorRuntime *doors_;
     std::vector<GuardRuntimeRecord> guards_;
+    uint32_t previewRng_;
 };
 
 } // namespace n3d
