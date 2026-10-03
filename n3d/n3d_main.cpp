@@ -99,8 +99,12 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
                (unsigned)inv.idCardMask,
                (unsigned)inv.pentagramMask,
                (unsigned)inv.ownedWeapons);
+        printf("  player state    : HP=%u gameState=%u omnipotent=%u\n",
+               (unsigned)inv.health,
+               (unsigned)inv.gameState,
+               inv.omnipotent ? 1u : 0u);
     }
-    printf("\nStage 8 complete: runtime includes collectible handling plus GUARD spawn/facing/occupancy preview movement.\n");
+    printf("\nStage 9 complete: runtime includes GUARD perception, state-4 enemy damage and player HP/death state.\n");
 
     return 0;
 }
