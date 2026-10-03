@@ -47,7 +47,7 @@ GuardRuntimeRecord::GuardRuntimeRecord()
       syncFlag(0), hp(0xff), facing(0), directionCache(8),
       moveX(0), moveY(0), verticalBobStep(0),
       perceptionMode(1), losResult(0),
-      proximityResult(0)
+      proximityResult(0), savedSequenceObjectId(0xff)
 {
 }
 
@@ -816,6 +816,192 @@ void GuardRuntime::applyNavigationMarker(GuardRuntimeRecord &guard,
     {
         guard.facing = static_cast<uint8_t>(variant);
         setMovementFromFacing(guard);
+    }
+}
+
+const DoorController *GuardRuntime::findNearestFleeDoor(
+    const RuntimeObject &object) const
+{
+    if(!doors_)
+        return 0;
+
+    const int startX =
+        static_cast<int>(worldToTile(object.worldX));
+    const int startY =
+        static_cast<int>(worldToTile(object.worldY));
+
+    const DoorController *best = 0;
+    int bestDistance = 0x7fff;
+
+    const std::vector<DoorController> &controllers =
+        doors_->controllers();
+
+    for(size_t i = 0; i < controllers.size(); ++i)
+    {
+        const DoorController &door = controllers[i];
+        const int dx = door.x - startX;
+        const int dy = door.y - startY;
+        const int distance = absInt(dx) + absInt(dy);
+
+        if(distance >= bestDistance)
+            continue;
+
+        if(!traceGridLine(startX, startY,
+                          dx, dy, distance, false))
+            continue;
+
+        best = &door;
+        bestDistance = distance;
+    }
+
+    return best;
+}
+
+void GuardRuntime::planStrategy1Flee(
+    GuardRuntimeRecord &guard,
+    const RuntimeObject &object)
+{
+    if(guard.hp < 0x7f)
+    {
+        const DoorController *door =
+            findNearestFleeDoor(object);
+
+        if(door)
+        {
+            const int32_t targetX =
+                static_cast<int32_t>(door->x * 64 + 32);
+            const int32_t targetY =
+                static_cast<int32_t>(door->y * 64 + 32);
+
+            const int32_t dx = targetX - object.worldX;
+            const int32_t dy = targetY - object.worldY;
+
+            guard.moveX =
+                static_cast<int8_t>(dx < 0 ? -8 : (dx > 0 ? 8 : 0));
+            guard.moveY =
+                static_cast<int8_t>(dy < 0 ? -8 : (dy > 0 ? 8 : 0));
+        }
+
+        guard.timer = 0x10;
+        guard.state = 6;
+        guard.facing =
+            facingFromVector(guard.moveX, guard.moveY, guard.facing);
+        return;
+    }
+
+    // Strategy 1 above the low-HP threshold falls through to the ordinary
+    // strategy-0 planner in the original dispatcher.
+}
+
+unsigned GuardRuntime::activateActionSpotDancers()
+{
+    if(!world_ || !map_ || !img_ || !objects_)
+        return 0;
+
+    const int dancerId = firstObjectIdForClass(0x21);
+    if(dancerId < 0)
+        return 0;
+
+    const ImgSequenceDef *dancerSequence =
+        img_->objectSequence(static_cast<uint8_t>(dancerId));
+    if(!dancerSequence)
+        return 0;
+
+    unsigned activated = 0;
+
+    for(size_t i = 0; i < guards_.size(); ++i)
+    {
+        GuardRuntimeRecord &guard = guards_[i];
+        if(guard.objectIndex >= objects_->objects().size())
+            continue;
+
+        RuntimeObject &object =
+            objects_->objects()[guard.objectIndex];
+
+        if(object.tileX < 0 || object.tileY < 0 ||
+           object.tileX >= WorldState::Width ||
+           object.tileY >= WorldState::Height)
+            continue;
+
+        WorldCell &cell =
+            world_->at(static_cast<size_t>(object.tileX),
+                       static_cast<size_t>(object.tileY));
+
+        if(cell.wallClass != 0x46)
+            continue;
+
+        // Exact AE56(0) state mutation: remove MAP occupancy, save old
+        // sequence selector, enter state 0x14, timer 0x70, scripted X delta 3.
+        cell.objectId = 0;
+        cell.objectClass = map_->objectClass(0);
+
+        guard.savedSequenceObjectId = object.sequenceObjectId;
+        guard.state = 0x14;
+        guard.timer = 0x70;
+        guard.moveX = 3;
+
+        object.sequenceObjectId =
+            static_cast<uint8_t>(dancerId);
+
+        uint16_t token = guard.sequenceToken;
+        if(object.objectClass == 0x09)
+            token = dancerSequence->directionalToken(0, 0);
+        else if(object.objectClass == 0x0B)
+            token = dancerSequence->directionalToken(2, 0);
+        else if(object.objectClass == 0x0C)
+            token = dancerSequence->directionalToken(1, 0);
+
+        if(token != 0)
+            guard.sequenceToken = token;
+
+        object.animationFrame =
+            static_cast<uint8_t>(guard.sequenceToken & 0xffu);
+        ++activated;
+    }
+
+    return activated;
+}
+
+void GuardRuntime::restoreActionSpotDancers()
+{
+    if(!img_ || !objects_)
+        return;
+
+    for(size_t i = 0; i < guards_.size(); ++i)
+    {
+        GuardRuntimeRecord &guard = guards_[i];
+        if(guard.state != 0x14 ||
+           guard.objectIndex >= objects_->objects().size())
+            continue;
+
+        RuntimeObject &object =
+            objects_->objects()[guard.objectIndex];
+
+        guard.strategy = 0;
+        guard.state = 6;
+        guard.timer = 1;
+
+        if(guard.savedSequenceObjectId != 0xff)
+            object.sequenceObjectId =
+                guard.savedSequenceObjectId;
+
+        guard.nextState = 6;
+
+        const ImgSequenceDef *sequence =
+            objectSequence(object);
+        if(sequence)
+        {
+            const uint16_t token =
+                sequence->directionalToken(2, 0);
+            if(token != 0)
+            {
+                guard.sequenceToken = token;
+                object.animationFrame =
+                    static_cast<uint8_t>(token & 0xffu);
+            }
+        }
+
+        guard.savedSequenceObjectId = 0xff;
     }
 }
 
