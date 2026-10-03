@@ -582,13 +582,9 @@ uint8_t GuardRuntime::computeContactDamage(const RuntimeObject &object,
             break;
 
         case 0x16:
-            if(episode_ != 3 && !hamersteinOverride_)
-            {
-                damage = 0x21u;
-                break;
-            }
-            // Episode 3 / override deliberately falls through to Cannon-style
-            // fixed 100 damage in the original switch.
+            damage = (episode_ != 3 && !hamersteinOverride_) ? 0x21u : 100u;
+            break;
+
         case 0x19:
             damage = 100u;
             break;
