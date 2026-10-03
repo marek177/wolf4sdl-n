@@ -35,6 +35,10 @@ const ProjectileRuntime *runtimeProjectilesConst();
 bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out);
 bool runtimeWorldObjectTexture(size_t objectIndex,
                                ObjectTextureView &out);
+bool runtimeAdvanceWorldObjectAnimation(size_t objectIndex,
+                                        uint32_t nowMs,
+                                        int32_t playerWorldX,
+                                        int32_t playerWorldY);
 
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData);
 void runtimeObjectTouchQuery(int tileX, int tileY,
