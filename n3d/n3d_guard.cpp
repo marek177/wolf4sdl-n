@@ -42,7 +42,7 @@ uint8_t facingFromVector(int dx, int dy, uint8_t fallback)
 }
 
 GuardRuntimeRecord::GuardRuntimeRecord()
-    : renderStamp(0), timer(0), objectIndex(0), strategy(0),
+    : renderStamp(0), sequenceToken(0), timer(0), objectIndex(0), strategy(0),
       state(7), nextState(2), savedMapObjectId(0), areaId(0),
       syncFlag(0), hp(0xff), facing(0), directionCache(8),
       moveX(0), moveY(0), perceptionMode(1), losResult(0),
@@ -51,7 +51,7 @@ GuardRuntimeRecord::GuardRuntimeRecord()
 }
 
 GuardRuntime::GuardRuntime()
-    : world_(0), map_(0), objects_(0), doors_(0),
+    : world_(0), map_(0), img_(0), objects_(0), doors_(0),
       previewRng_(0x4e334431UL), episode_(1), hamersteinOverride_(false),
       renderGeneration_(1)
 {
@@ -114,8 +114,182 @@ void GuardRuntime::setMovementFromFacing(GuardRuntimeRecord &guard)
     guard.moveY = static_cast<int8_t>(dy[i] * scale);
 }
 
+uint8_t GuardRuntime::computeDirectionToPlayer(
+    bool wide,
+    const RuntimeObject &object,
+    int32_t playerWorldX,
+    int32_t playerWorldY) const
+{
+    const int dx = static_cast<int>(playerWorldX - object.worldX);
+    const int dy = static_cast<int>(playerWorldY - object.worldY);
+    const int ax = absInt(dx);
+    const int ay = absInt(dy);
+
+    if(!wide)
+    {
+        if(dx >= 0)
+        {
+            if(dy < 0)
+                return ay <= ax ? 1u : 0u;
+            return ax < ay ? 3u : 2u;
+        }
+
+        if(dy >= 0)
+            return ay <= ax ? 5u : 4u;
+
+        return ay <= ax ? 6u : 7u;
+    }
+
+    if(ay * 2 < ax)
+        return dx < 0 ? 6u : 2u;
+
+    if(ax * 2 < ay)
+        return dy > 0 ? 4u : 0u;
+
+    if(dx > 0)
+        return dy < 1 ? 1u : 3u;
+
+    return dy > 0 ? 5u : 7u;
+}
+
+const ImgSequenceDef *GuardRuntime::objectSequence(
+    const RuntimeObject &object) const
+{
+    if(!img_ || object.sequenceObjectId == 0xff)
+        return 0;
+
+    return img_->objectSequence(object.sequenceObjectId);
+}
+
+void GuardRuntime::setSequenceToken(GuardRuntimeRecord &guard,
+                                    RuntimeObject &object,
+                                    uint16_t token,
+                                    uint8_t currentState,
+                                    uint8_t nextState)
+{
+    guard.sequenceToken = token;
+    object.animationFrame = static_cast<uint8_t>(token & 0xffu);
+
+    const unsigned count = (token >> 8) & 0xffu;
+    guard.timer = static_cast<uint16_t>((count - 1u) & 0xffffu);
+    guard.state = currentState;
+    guard.nextState = nextState;
+}
+
+bool GuardRuntime::advanceTokenFrame(GuardRuntimeRecord &guard,
+                                     RuntimeObject &object,
+                                     bool loop)
+{
+    const unsigned start =
+        static_cast<unsigned>(guard.sequenceToken & 0xffu);
+    const unsigned count =
+        static_cast<unsigned>((guard.sequenceToken >> 8) & 0xffu);
+
+    if(count == 0u)
+        return true;
+
+    const unsigned end = start + count - 1u;
+    unsigned frame = object.animationFrame;
+
+    if(frame < end)
+    {
+        ++frame;
+        object.animationFrame = static_cast<uint8_t>(frame);
+        return false;
+    }
+
+    if(loop)
+    {
+        object.animationFrame = static_cast<uint8_t>(start);
+        return false;
+    }
+
+    return true;
+}
+
+uint16_t GuardRuntime::chooseAlternativeToken(
+    const RuntimeObject &object,
+    bool secondTable)
+{
+    const ImgSequenceDef *sequence = objectSequence(object);
+    if(!sequence)
+        return 0;
+
+    if(sequence->shortcutFlag(secondTable) != 0)
+    {
+        const uint16_t shortcut =
+            sequence->alternativeToken(secondTable, 6u);
+        if((shortcut >> 8) != 0)
+            return shortcut;
+    }
+
+    for(unsigned attempts = 0; attempts < 64u; ++attempts)
+    {
+        const unsigned index =
+            static_cast<unsigned>(nextPreviewRandom() % 7u);
+        const uint16_t token =
+            sequence->alternativeToken(secondTable, index);
+        if((token >> 8) != 0)
+            return token;
+    }
+
+    return 0;
+}
+
+void GuardRuntime::refreshDirectionalSequence(
+    GuardRuntimeRecord &guard,
+    RuntimeObject &object,
+    int32_t playerWorldX,
+    int32_t playerWorldY,
+    bool force)
+{
+    const ImgSequenceDef *sequence = objectSequence(object);
+    if(!sequence)
+    {
+        updateRenderFacing(object, guard);
+        return;
+    }
+
+    const bool wide = guard.syncFlag != 0;
+    const uint8_t toPlayer =
+        computeDirectionToPlayer(wide, object,
+                                 playerWorldX, playerWorldY);
+
+    const uint8_t relative =
+        static_cast<uint8_t>(
+            ((wide ? 4 : 3) +
+             static_cast<int>(guard.facing) -
+             static_cast<int>(toPlayer)) & 7);
+
+    if(!force && guard.directionCache == relative)
+        return;
+
+    guard.directionCache = relative;
+
+    unsigned table = 0;
+    if(guard.state == 6 && guard.strategy != 2)
+        table = 2;
+    else if(guard.state == 8 ||
+            guard.state == 0x10 ||
+            guard.state == 0x11)
+        table = 1;
+
+    const uint16_t token =
+        sequence->directionalToken(table, relative);
+    if(token == 0)
+    {
+        updateRenderFacing(object, guard);
+        return;
+    }
+
+    guard.sequenceToken = token;
+    object.animationFrame =
+        static_cast<uint8_t>(token & 0xffu);
+}
+
 bool GuardRuntime::build(WorldState &world,
                          const MapArchive &map,
+                         const ImgArchive &img,
                          ObjectRuntime &objects,
                          DoorRuntime *doors,
                          int episode,
@@ -123,6 +297,7 @@ bool GuardRuntime::build(WorldState &world,
 {
     world_ = &world;
     map_ = &map;
+    img_ = &img;
     objects_ = &objects;
     doors_ = doors;
     guards_.clear();
