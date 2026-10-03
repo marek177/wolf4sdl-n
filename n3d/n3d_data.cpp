@@ -153,25 +153,22 @@ bool ImgArchive::load(const std::string &path, std::string &error)
     ByteVector bytes;
     wallSlotOffsets_.clear();
     objectSlotOffsets_.clear();
+    wallSequences_.clear();
+    objectSequences_.clear();
     frames_.clear();
     reservedDword_ = 0;
     firstDataOffset_ = 0;
 
     if(!readFile(path, bytes, error))
         return false;
-    if(bytes.size() < ImageIndexRegionEnd)
+    if(bytes.size() < FrameDataOffset)
     {
-        error = "IMG file is too small for both 256-entry image directories: " + path;
+        error = "IMG file is too small for directories plus both 256-entry SEQDEF banks: " + path;
         return false;
     }
 
     reservedDword_ = readU32LE(bytes, 0);
-    firstDataOffset_ = readU32LE(bytes, 4);
-    if(firstDataOffset_ < ImageIndexRegionEnd || firstDataOffset_ > bytes.size())
-    {
-        error = "IMG first image offset is invalid: " + path;
-        return false;
-    }
+    firstDataOffset_ = FrameDataOffset;
 
     wallSlotOffsets_.reserve(ImageIndexEntries);
     objectSlotOffsets_.reserve(ImageIndexEntries);
@@ -179,18 +176,46 @@ bool ImgArchive::load(const std::string &path, std::string &error)
     {
         const uint32_t wallOffset = readU32LE(bytes, i * 4);
         const uint32_t objectOffset = readU32LE(bytes, 0x400 + i * 4);
-        if(wallOffset != 0 && (wallOffset < firstDataOffset_ || wallOffset >= bytes.size()))
+        if(wallOffset != 0 && (wallOffset < FrameDataOffset || wallOffset >= bytes.size()))
         {
             error = "IMG wall directory entry points outside image data: " + path;
             return false;
         }
-        if(objectOffset != 0 && (objectOffset < firstDataOffset_ || objectOffset >= bytes.size()))
+        if(objectOffset != 0 && (objectOffset < FrameDataOffset || objectOffset >= bytes.size()))
         {
             error = "IMG object directory entry points outside image data: " + path;
             return false;
         }
         wallSlotOffsets_.push_back(wallOffset);
         objectSlotOffsets_.push_back(objectOffset);
+    }
+
+    wallSequences_.resize(ImageIndexEntries);
+    objectSequences_.resize(ImageIndexEntries);
+
+    for(size_t i = 0; i < ImageIndexEntries; ++i)
+    {
+        const size_t low =
+            static_cast<size_t>(LowSequenceBankOffset) +
+            i * static_cast<size_t>(SequenceRecordBytes);
+        const size_t high =
+            static_cast<size_t>(HighSequenceBankOffset) +
+            i * static_cast<size_t>(SequenceRecordBytes);
+
+        if(!requireRange(bytes, low, SequenceRecordBytes) ||
+           !requireRange(bytes, high, SequenceRecordBytes))
+        {
+            error = "IMG contains a truncated 90-byte SEQDEF record: " + path;
+            return false;
+        }
+
+        wallSequences_[i].intervalMs = readU16LE(bytes, low);
+        wallSequences_[i].frameCount = bytes[low + 2];
+        wallSequences_[i].extended = bytes[low + 3];
+
+        objectSequences_[i].intervalMs = readU16LE(bytes, high);
+        objectSequences_[i].frameCount = bytes[high + 2];
+        objectSequences_[i].extended = bytes[high + 3];
     }
 
     size_t pos = static_cast<size_t>(firstDataOffset_);
@@ -232,6 +257,75 @@ const ImgFrame *ImgArchive::frameAtExactOffset(uint32_t offset) const
         if(frames_[i].fileOffset == offset)
             return &frames_[i];
     return 0;
+}
+
+
+const ImgSequenceDef *ImgArchive::wallSequence(uint8_t id) const
+{
+    return static_cast<size_t>(id) < wallSequences_.size()
+        ? &wallSequences_[id] : 0;
+}
+
+const ImgSequenceDef *ImgArchive::objectSequence(uint8_t id) const
+{
+    return static_cast<size_t>(id) < objectSequences_.size()
+        ? &objectSequences_[id] : 0;
+}
+
+const ImgFrame *ImgArchive::sequenceFrameFromOffset(uint32_t offset,
+                                                    unsigned frameIndex) const
+{
+    uint32_t current = offset;
+
+    for(unsigned i = 0; i <= frameIndex; ++i)
+    {
+        const ImgFrame *frame = frameAtExactOffset(current);
+        if(!frame)
+            return 0;
+
+        if(i == frameIndex)
+            return frame;
+
+        const size_t next =
+            static_cast<size_t>(current) + 10u +
+            static_cast<size_t>(frame->width) *
+            static_cast<size_t>(frame->height);
+
+        if(next > 0xffffffffUL)
+            return 0;
+
+        current = static_cast<uint32_t>(next);
+    }
+
+    return 0;
+}
+
+const ImgFrame *ImgArchive::wallSequenceFrame(uint8_t wallId,
+                                              unsigned frameIndex) const
+{
+    if(static_cast<size_t>(wallId) >= wallSlotOffsets_.size())
+        return 0;
+
+    const ImgSequenceDef *sequence = wallSequence(wallId);
+    if(!sequence || frameIndex >= sequence->frameCount)
+        return 0;
+
+    const uint32_t stream = wallSlotOffsets_[wallId];
+    return stream ? sequenceFrameFromOffset(stream, frameIndex) : 0;
+}
+
+const ImgFrame *ImgArchive::objectSequenceFrame(uint8_t objectId,
+                                                unsigned frameIndex) const
+{
+    if(static_cast<size_t>(objectId) >= objectSlotOffsets_.size())
+        return 0;
+
+    const ImgSequenceDef *sequence = objectSequence(objectId);
+    if(!sequence || frameIndex >= sequence->frameCount)
+        return 0;
+
+    const uint32_t stream = objectSlotOffsets_[objectId];
+    return stream ? sequenceFrameFromOffset(stream, frameIndex) : 0;
 }
 
 bool ImgArchive::hasFrameAtOffset(uint32_t offset) const
