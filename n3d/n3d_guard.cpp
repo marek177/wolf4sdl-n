@@ -1006,17 +1006,46 @@ uint8_t GuardRuntime::computeWeaponDamage(const RuntimeObject &object,
 void GuardRuntime::enterPainState(GuardRuntimeRecord &guard,
                                   RuntimeObject &object)
 {
-    (void)object;
     guard.directionCache = 8;
 
     if(guard.strategy == 4)
         return;
 
+    const uint16_t token =
+        chooseAlternativeToken(guard, object, false);
+
+    if(token == 0)
+    {
+        // Safe compatibility fallback for incomplete/mismatched resource sets.
+        if(guard.strategy == 2)
+        {
+            guard.state = 0;
+            guard.nextState = 8;
+            guard.timer = 1;
+            return;
+        }
+
+        if(guard.state == 3 || guard.state == 4 || guard.state == 0x0B)
+            return;
+
+        if(guard.state == 7 || guard.state == 8 || guard.state == 0x15)
+        {
+            guard.state = 0;
+            guard.nextState = 5;
+            guard.timer = 1;
+            return;
+        }
+
+        if(guard.state != 0)
+            guard.nextState = guard.state;
+        guard.state = 0x15;
+        guard.timer = 1;
+        return;
+    }
+
     if(guard.strategy == 2)
     {
-        guard.state = 0;
-        guard.nextState = 8;
-        guard.timer = 1;
+        setSequenceToken(guard, object, token, 0, 8);
         return;
     }
 
@@ -1025,18 +1054,18 @@ void GuardRuntime::enterPainState(GuardRuntimeRecord &guard,
 
     if(guard.state == 7 || guard.state == 8 || guard.state == 0x15)
     {
-        // The recovered path first performs a forced perception refresh, then
-        // uses the sequence setter with current state 0 / next state 5.
-        guard.state = 0;
-        guard.nextState = 5;
-        guard.timer = 1;
+        setSequenceToken(guard, object, token, 0, 5);
         return;
     }
 
+    guard.sequenceToken = token;
+    object.animationFrame =
+        static_cast<uint8_t>(token & 0xffu);
+
     if(guard.state != 0)
         guard.nextState = guard.state;
+
     guard.state = 0x15;
-    guard.timer = 1;
 }
 
 void GuardRuntime::beginDeath(GuardRuntimeRecord &guard,
@@ -1045,9 +1074,21 @@ void GuardRuntime::beginDeath(GuardRuntimeRecord &guard,
     guard.hp = 0;
     guard.directionCache = 8;
 
-    guard.state = object.verticalOffset > 0 ? 0x12 : 0;
-    guard.nextState = 9;
-    guard.timer = 1;
+    const uint16_t token =
+        chooseAlternativeToken(guard, object, true);
+
+    if(token != 0)
+    {
+        setSequenceToken(guard, object, token,
+                         object.verticalOffset > 0 ? 0x12 : 0,
+                         9);
+    }
+    else
+    {
+        guard.state = object.verticalOffset > 0 ? 0x12 : 0;
+        guard.nextState = 9;
+        guard.timer = 1;
+    }
 
     if(objects_)
     {
@@ -1095,7 +1136,11 @@ void GuardRuntime::finalizeDeath(GuardRuntimeRecord &guard,
             object.objectClass = 0x14;
             const int firstBat = firstObjectIdForClass(0x14);
             if(firstBat >= 0)
+            {
                 object.renderObjectId = static_cast<uint8_t>(firstBat);
+                object.sequenceObjectId = static_cast<uint8_t>(firstBat);
+                object.animationFrame = 0;
+            }
             object.verticalOffset = 0x23;
             object.active = true;
             object.properties =
