@@ -175,7 +175,7 @@ uint16_t ImgSequenceDef::stateToken(unsigned stateIndex) const
 uint16_t ImgSequenceDef::alternativeToken(bool secondTable,
                                           unsigned index) const
 {
-    if(index >= 7u)
+    if(index >= 8u)
         return 0;
 
     return wordAt((secondTable ? 0x4Au : 0x3Au) + index * 2u);
