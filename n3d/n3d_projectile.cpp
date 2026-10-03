@@ -24,6 +24,13 @@ int signInt(int value)
 
 }
 
+ExplodingWallRecord::ExplodingWallRecord()
+    : tileX(0), tileY(0), sourceWallId(0), sourceWallClass(0),
+      sequenceWallId(0xff), frame(0), animationDeadlineMs(0),
+      active(false)
+{
+}
+
 ProjectileSlot::ProjectileSlot()
     : majorAxis(0), error(0), minorIncrement(0), correctionIncrement(0),
       stepX(0), stepY(0), lifecycle(0), reserved(0),
@@ -73,6 +80,7 @@ void ProjectileRuntime::clear()
 {
     for(size_t i = 0; i < SlotCount; ++i)
         slots_[i] = ProjectileSlot();
+    explodingWalls_.clear();
 }
 
 unsigned ProjectileRuntime::activeCount() const
@@ -224,6 +232,147 @@ ProjectileFireResult ProjectileRuntime::fire(int32_t playerWorldX,
     return ProjectileFireAccepted;
 }
 
+const ExplodingWallRecord *ProjectileRuntime::explodingWallAt(
+    int tileX, int tileY) const
+{
+    for(size_t i = 0; i < explodingWalls_.size(); ++i)
+    {
+        const ExplodingWallRecord &wall = explodingWalls_[i];
+        if(wall.active && wall.tileX == tileX && wall.tileY == tileY)
+            return &wall;
+    }
+    return 0;
+}
+
+bool ProjectileRuntime::explodingWallVisual(int tileX, int tileY,
+                                            uint8_t &wallId,
+                                            unsigned &frameIndex) const
+{
+    const ExplodingWallRecord *wall =
+        explodingWallAt(tileX, tileY);
+    if(!wall)
+        return false;
+
+    wallId = wall->sequenceWallId;
+    frameIndex = wall->frame;
+    return true;
+}
+
+int ProjectileRuntime::firstWallIdForClass(uint8_t wallClass) const
+{
+    if(!map_)
+        return -1;
+
+    for(int id = 0; id < 256; ++id)
+        if(map_->wallClass(static_cast<uint8_t>(id)) == wallClass)
+            return id;
+
+    return -1;
+}
+
+bool ProjectileRuntime::startExplodingWall(int tileX, int tileY,
+                                           uint8_t wallId,
+                                           uint8_t wallClass,
+                                           uint32_t nowMs)
+{
+    if(!world_ || !map_ || !img_)
+        return false;
+
+    if(explodingWallAt(tileX, tileY))
+        return true;
+
+    uint8_t sequenceWallId = wallId;
+    unsigned firstFrame = 0;
+
+    if(wallClass == 0x2E)
+    {
+        const int runtimeExplosion =
+            firstWallIdForClass(0x2D);
+        if(runtimeExplosion < 0)
+            return false;
+        sequenceWallId =
+            static_cast<uint8_t>(runtimeExplosion);
+        firstFrame = 0;
+    }
+    else if(wallClass == 0x2F)
+    {
+        // WALL_EX2 keeps its already-selected wall sequence and begins at
+        // frame 1 in the original projectile collision path.
+        firstFrame = 1;
+    }
+    else
+    {
+        return false;
+    }
+
+    const ImgSequenceDef *sequence =
+        img_->wallSequence(sequenceWallId);
+    if(!sequence || sequence->frameCount == 0 ||
+       firstFrame >= sequence->frameCount)
+        return false;
+
+    ExplodingWallRecord wall;
+    wall.tileX = tileX;
+    wall.tileY = tileY;
+    wall.sourceWallId = wallId;
+    wall.sourceWallClass = wallClass;
+    wall.sequenceWallId = sequenceWallId;
+    wall.frame = static_cast<uint8_t>(firstFrame);
+    wall.animationDeadlineMs =
+        nowMs + static_cast<uint32_t>(sequence->intervalMs);
+    wall.active = true;
+    explodingWalls_.push_back(wall);
+
+    WorldCell &cell =
+        world_->at(static_cast<size_t>(tileX),
+                   static_cast<size_t>(tileY));
+    cell.wallClass = 0x2D;
+    return true;
+}
+
+void ProjectileRuntime::updateExplodingWalls(uint32_t nowMs)
+{
+    if(!world_ || !map_ || !img_)
+        return;
+
+    for(size_t i = 0; i < explodingWalls_.size(); ++i)
+    {
+        ExplodingWallRecord &wall = explodingWalls_[i];
+        if(!wall.active || wall.animationDeadlineMs > nowMs)
+            continue;
+
+        const ImgSequenceDef *sequence =
+            img_->wallSequence(wall.sequenceWallId);
+        if(!sequence || sequence->frameCount == 0)
+        {
+            wall.active = false;
+            continue;
+        }
+
+        const unsigned next =
+            static_cast<unsigned>(wall.frame) + 1u;
+
+        if(next >= sequence->frameCount)
+        {
+            // Win16 FUN_1018_3C0C clears wall bytes along the completed VEC.
+            // The Wolf tile bridge does not yet reconstruct merged VEC spans,
+            // so this compatibility layer clears the directly impacted MAP
+            // cell and preserves the exact persistent wall-byte mutation.
+            WorldCell &cell =
+                world_->at(static_cast<size_t>(wall.tileX),
+                           static_cast<size_t>(wall.tileY));
+            cell.wallId = 0;
+            cell.wallClass = map_->wallClass(0);
+            wall.active = false;
+            continue;
+        }
+
+        wall.frame = static_cast<uint8_t>(next);
+        wall.animationDeadlineMs =
+            nowMs + static_cast<uint32_t>(sequence->intervalMs);
+    }
+}
+
 bool ProjectileRuntime::collide(ProjectileSlot &slot,
                                 int32_t candidateX,
                                 int32_t candidateY,
@@ -248,11 +397,14 @@ bool ProjectileRuntime::collide(ProjectileSlot &slot,
 
     const uint8_t wallFlags = wallPropertiesForClass(cell.wallClass);
 
-    // Hard/projectile-blocking walls always terminate flight. Explodable-wall
-    // conversion is intentionally a separate layer; the collision result is
-    // already exact here.
     if((wallFlags & 0x04) != 0)
+    {
+        if((wallFlags & 0x10) != 0)
+            startExplodingWall(tileX, tileY,
+                               cell.wallId, cell.wallClass,
+                               nowMs);
         return true;
+    }
 
     if((wallFlags & 0x08) != 0)
     {
@@ -327,6 +479,8 @@ ProjectileUpdateReport ProjectileRuntime::tick(uint32_t nowMs,
                                                int viewportCenterY)
 {
     ProjectileUpdateReport report;
+
+    updateExplodingWalls(nowMs);
 
     for(size_t i = 0; i < SlotCount; ++i)
     {
