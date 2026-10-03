@@ -7,7 +7,8 @@ namespace n3d
 {
 
 RuntimeObject::RuntimeObject()
-    : objectId(0), subtype(0), objectClass(0), properties(0),
+    : objectId(0), subtype(0), objectClass(0), renderObjectId(0),
+      properties(0), guardIndex(0xff),
       tileX(0), tileY(0), worldX(0), worldY(0), active(false)
 {
 }
@@ -64,8 +65,10 @@ bool ObjectRuntime::build(WorldState &world,
             RuntimeObject object;
             object.objectId = cell.objectId;
             object.objectClass = cell.objectClass;
+            object.renderObjectId = cell.objectId;
             object.subtype = subtypeFor(cell.objectId, cell.objectClass);
             object.properties = properties;
+            object.guardIndex = 0xff;
             object.tileX = x;
             object.tileY = y;
             object.worldX = x * 64 + 32;
@@ -114,8 +117,16 @@ const RuntimeObject *ObjectRuntime::findAt(int tileX, int tileY) const
 
 bool ObjectRuntime::occupiedAt(int tileX, int tileY) const
 {
-    const RuntimeObject *object = findAt(tileX, tileY);
-    return object != 0 && (object->properties & 0x02) != 0;
+    for(size_t i = 0; i < objects_.size(); ++i)
+    {
+        const RuntimeObject &object = objects_[i];
+        if(object.active &&
+           object.tileX == tileX &&
+           object.tileY == tileY &&
+           (object.properties & 0x02) != 0)
+            return true;
+    }
+    return false;
 }
 
 uint8_t *ObjectRuntime::ammoPoolForWeapon(unsigned weapon)
