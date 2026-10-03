@@ -19,7 +19,9 @@ InventoryState::InventoryState()
       pistolAmmo(0), plasmaAmmo(0), wandAmmo(0),
       crystalBall(0), magicEye(0), meter(0), bonusCounter(0),
       activeWeapon(0xff), pendingWeapon(0xff), weaponSelectionMode(0),
-      lastScrollSubtype(0xff), score(0)
+      lastScrollSubtype(0xff), damageFlash(0), gameState(0),
+      deathAttackerObjectIndex(0xffff), omnipotent(false),
+      deathTransitionPending(false), score(0)
 {
 }
 
@@ -93,6 +95,29 @@ uint8_t ObjectRuntime::subtypeFor(uint8_t objectId, uint8_t objectClass) const
     }
 
     return 0;
+}
+
+PlayerDamageResult ObjectRuntime::applyEnemyDamage(uint8_t damage,
+                                                   uint16_t attackerObjectIndex)
+{
+    if(damage != 0)
+        inventory_.damageFlash = 3;
+
+    if(inventory_.omnipotent || inventory_.gameState == 2)
+        return PlayerDamageSuppressed;
+
+    if(damage < inventory_.health)
+    {
+        inventory_.health =
+            static_cast<uint8_t>(inventory_.health - damage);
+        return PlayerDamageNonLethal;
+    }
+
+    inventory_.health = 0;
+    inventory_.gameState = 2;
+    inventory_.deathTransitionPending = true;
+    inventory_.deathAttackerObjectIndex = attackerObjectIndex;
+    return PlayerDamageLethal;
 }
 
 RuntimeObject *ObjectRuntime::findAt(int tileX, int tileY)
