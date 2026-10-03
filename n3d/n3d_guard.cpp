@@ -674,6 +674,375 @@ PlayerDamageResult GuardRuntime::attackPlayer(GuardRuntimeRecord &guard,
     return result;
 }
 
+int GuardRuntime::firstObjectIdForClass(uint8_t objectClass) const
+{
+    if(!map_)
+        return -1;
+
+    for(int id = 0; id < 256; ++id)
+        if(map_->objectClass(static_cast<uint8_t>(id)) == objectClass)
+            return id;
+
+    return -1;
+}
+
+int32_t GuardRuntime::killScore(uint8_t objectClass) const
+{
+    switch(objectClass)
+    {
+        case 0x08:
+        case 0x1A: return 25;
+
+        case 0x09: return 75;
+
+        case 0x0A:
+        case 0x20: return 50;
+
+        case 0x0B:
+        case 0x0F:
+        case 0x10:
+        case 0x17:
+        case 0x1B:
+        case 0x1C: return 100;
+
+        case 0x0C:
+        case 0x1D:
+        case 0x1E: return 250;
+
+        case 0x0D:
+        case 0x12:
+        case 0x13: return 150;
+
+        case 0x0E:
+        case 0x14:
+        case 0x18:
+        case 0x1F: return 200;
+
+        case 0x15: return -1000;
+        case 0x16: return 1000;
+    }
+
+    return 0;
+}
+
+uint8_t GuardRuntime::computeWeaponDamage(const RuntimeObject &object,
+                                          uint8_t weaponId,
+                                          int difficultyCode,
+                                          int viewportCenterY)
+{
+    int damage =
+        8 * (static_cast<int>(object.lastProjectedY) - viewportCenterY) +
+        static_cast<int>(nextPreviewRandom() % 25u);
+
+    switch(object.objectClass)
+    {
+        case 0x0C:
+        case 0x1D:
+            damage = arithmeticShiftRight(damage, 3);
+            break;
+
+        case 0x0D:
+            damage = arithmeticShiftRight(damage, weaponId == 1 ? 1 : 3);
+            break;
+
+        case 0x0E:
+        case 0x11:
+        case 0x14:
+            damage = arithmeticShiftRight(damage, weaponId == 2 ? 1 : 3);
+            break;
+
+        case 0x0F:
+        case 0x10:
+            damage = arithmeticShiftRight(damage, weaponId == 1 ? 8 : 1);
+            break;
+
+        case 0x12:
+        case 0x13:
+            damage = arithmeticShiftRight(damage, 2);
+            break;
+
+        case 0x15:
+            // Original also invokes a special text/event path.
+            damage = 0;
+            break;
+
+        case 0x16:
+            damage = episode_ == 3 ? 3 : 0;
+            break;
+
+        case 0x17:
+            damage = arithmeticShiftRight(damage, weaponId == 1 ? 8 : 2);
+            break;
+
+        case 0x18:
+            if(weaponId == 1)
+                damage = arithmeticShiftRight(damage, 8);
+            else if(weaponId == 2)
+                damage = arithmeticShiftRight(damage, 4);
+            else
+                damage = arithmeticShiftRight(damage, 3);
+            break;
+
+        case 0x19:
+            damage = 0;
+            break;
+
+        case 0x1A:
+            if(weaponId == 1)
+                damage = arithmeticShiftRight(damage, 1);
+            else
+                damage = 0;
+            break;
+
+        case 0x1B:
+        case 0x1C:
+            damage = arithmeticShiftRight(damage, 1);
+            break;
+
+        case 0x1E:
+            if(weaponId == 1)
+                damage = 0;
+            else
+                damage = arithmeticShiftRight(damage, 3);
+            break;
+
+        case 0x1F:
+            if(weaponId == 1)
+                damage = 0;
+            else
+                damage = arithmeticShiftRight(damage, 2);
+            break;
+
+        default:
+            break;
+    }
+
+    if(difficultyCode == 2)
+        damage = arithmeticShiftRight(damage, 1);
+    else if(difficultyCode == 0)
+        damage *= 2;
+
+    if(damage > 255)
+        damage = 255;
+
+    // The original caller consumes the low byte. There is intentionally no
+    // lower clamp here, preserving stale-cache/SAR behavior for negatives.
+    return static_cast<uint8_t>(damage & 0xff);
+}
+
+void GuardRuntime::enterPainState(GuardRuntimeRecord &guard,
+                                  RuntimeObject &object)
+{
+    (void)object;
+    guard.directionCache = 8;
+
+    if(guard.strategy == 4)
+        return;
+
+    if(guard.strategy == 2)
+    {
+        guard.state = 0;
+        guard.nextState = 8;
+        guard.timer = 1;
+        return;
+    }
+
+    if(guard.state == 3 || guard.state == 4 || guard.state == 0x0B)
+        return;
+
+    if(guard.state == 7 || guard.state == 8 || guard.state == 0x15)
+    {
+        // The recovered path first performs a forced perception refresh, then
+        // uses the sequence setter with current state 0 / next state 5.
+        guard.state = 0;
+        guard.nextState = 5;
+        guard.timer = 1;
+        return;
+    }
+
+    if(guard.state != 0)
+        guard.nextState = guard.state;
+    guard.state = 0x15;
+    guard.timer = 1;
+}
+
+void GuardRuntime::beginDeath(GuardRuntimeRecord &guard,
+                              RuntimeObject &object)
+{
+    guard.hp = 0;
+    guard.directionCache = 8;
+
+    guard.state = object.verticalOffset > 0 ? 0x12 : 0;
+    guard.nextState = 9;
+    guard.timer = 1;
+
+    if(objects_)
+    {
+        const int32_t score = killScore(object.objectClass);
+        objects_->inventory().score += static_cast<uint32_t>(score);
+    }
+
+    // Restore the saved underlying map byte immediately, matching the fatal
+    // hit path before state-9 finalization.
+    if(world_ && map_ &&
+       object.tileX >= 0 && object.tileY >= 0 &&
+       object.tileX < WorldState::Width && object.tileY < WorldState::Height)
+    {
+        WorldCell &cell =
+            world_->at(static_cast<size_t>(object.tileX),
+                       static_cast<size_t>(object.tileY));
+        cell.objectId = guard.savedMapObjectId;
+        cell.objectClass = map_->objectClass(guard.savedMapObjectId);
+    }
+}
+
+void GuardRuntime::finalizeDeath(GuardRuntimeRecord &guard,
+                                 RuntimeObject &object)
+{
+    object.properties = static_cast<uint8_t>(object.properties | 0x01u);
+    guard.state = 0x0A;
+
+    switch(object.objectClass)
+    {
+        case 0x09:
+        case 0x0A:
+        case 0x12:
+        case 0x13:
+        case 0x1A:
+        case 0x1E:
+        case 0x1F:
+            object.properties =
+                static_cast<uint8_t>(object.properties & ~0x01u);
+            object.active = false;
+            return;
+
+        case 0x11:
+        {
+            // Dracula humanoid -> Dracula-Bat.
+            object.objectClass = 0x14;
+            const int firstBat = firstObjectIdForClass(0x14);
+            if(firstBat >= 0)
+                object.renderObjectId = static_cast<uint8_t>(firstBat);
+            object.verticalOffset = 0x23;
+            object.active = true;
+            object.properties =
+                objectPropertiesForClass(object.objectClass);
+
+            guard.hp = 0xff;
+            guard.state = 8;
+            guard.nextState = 2;
+            guard.timer = 1;
+            guard.perceptionMode = 0;
+            guard.directionCache = 8;
+            setMovementFromFacing(guard);
+            return;
+        }
+
+        case 0x16:
+            // Hamerstein's original path sets the high-level ending request.
+            if(objects_)
+            {
+                objects_->inventory().gameState = 0;
+                objects_->inventory().deathTransitionPending = false;
+            }
+            return;
+    }
+}
+
+uint8_t GuardRuntime::applyPlayerWeaponHit(size_t guardIndex,
+                                           uint8_t weaponId,
+                                           int difficultyCode,
+                                           int viewportCenterY,
+                                           bool *killed)
+{
+    if(killed)
+        *killed = false;
+
+    if(!objects_ || guardIndex >= guards_.size())
+        return 0;
+
+    GuardRuntimeRecord &guard = guards_[guardIndex];
+    if(guard.objectIndex >= objects_->objects().size() || guard.hp == 0)
+        return 0;
+
+    RuntimeObject &object = objects_->objects()[guard.objectIndex];
+    const uint8_t damage =
+        computeWeaponDamage(object, weaponId,
+                            difficultyCode, viewportCenterY);
+
+    if(damage >= guard.hp)
+    {
+        beginDeath(guard, object);
+        if(killed)
+            *killed = true;
+        return damage;
+    }
+
+    if(damage == 0)
+        return 0;
+
+    guard.hp = static_cast<uint8_t>(guard.hp - damage);
+    enterPainState(guard, object);
+    return damage;
+}
+
+PlayerHitReport GuardRuntime::fireHitscan(int32_t playerWorldX,
+                                          int32_t playerWorldY,
+                                          uint8_t weaponId,
+                                          int difficultyCode,
+                                          int viewportCenterY)
+{
+    PlayerHitReport report;
+
+    if(!objects_ || weaponId != 2)
+        return report;
+
+    const int playerCellX = static_cast<int>(worldToTile(playerWorldX));
+    const int playerCellY = static_cast<int>(worldToTile(playerWorldY));
+
+    for(size_t i = 0; i < guards_.size(); ++i)
+    {
+        GuardRuntimeRecord &guard = guards_[i];
+        if(guard.renderStamp != renderGeneration_)
+            continue;
+
+        if(guard.state == 0 || guard.state == 9 || guard.state == 0x0A)
+            continue;
+
+        if(guard.objectIndex >= objects_->objects().size())
+            continue;
+
+        RuntimeObject &object = objects_->objects()[guard.objectIndex];
+        if(!object.active || guard.hp == 0)
+            continue;
+
+        const int targetCellX =
+            static_cast<int>(worldToTile(object.worldX));
+        const int targetCellY =
+            static_cast<int>(worldToTile(object.worldY));
+
+        if(!traceGridLine(playerCellX, playerCellY,
+                          targetCellX - playerCellX,
+                          targetCellY - playerCellY,
+                          16, true))
+            continue;
+
+        const uint32_t beforeScore = objects_->inventory().score;
+        bool killed = false;
+        applyPlayerWeaponHit(i, weaponId, difficultyCode,
+                             viewportCenterY, &killed);
+
+        ++report.hitCount;
+        if(killed)
+            ++report.killCount;
+
+        report.scoreDelta +=
+            static_cast<int32_t>(objects_->inventory().score - beforeScore);
+    }
+
+    return report;
+}
+
 bool GuardRuntime::candidateBlocked(size_t guardIndex,
                                     int32_t worldX,
                                     int32_t worldY,
