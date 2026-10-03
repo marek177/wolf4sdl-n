@@ -791,17 +791,16 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                                      false, true);
 
                 if(canAttack)
-                {
-                    const PlayerDamageResult result =
-                        attackPlayer(guard, object,
-                                     playerWorldX, playerWorldY,
-                                     difficultyCode);
-                    if(result == PlayerDamageLethal)
-                        break;
-                }
+                    attackPlayer(guard, object,
+                                 playerWorldX, playerWorldY,
+                                 difficultyCode);
 
-                // Original state-4 tail schedules the fallback/movement state
-                // whenever the player was not killed.
+                // Original dispatcher checks player game state after the
+                // optional damage call. State 2 returns immediately, leaving
+                // a non-killing guard in state 4 and the killing guard in 0x0B.
+                if(objects_->inventory().gameState == 2)
+                    break;
+
                 guard.state = 5;
                 break;
             }
