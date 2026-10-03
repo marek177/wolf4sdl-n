@@ -22,7 +22,7 @@ InventoryState::InventoryState()
       activeWeapon(0xff), pendingWeapon(0xff), weaponSelectionMode(0),
       lastScrollSubtype(0xff), damageFlash(0), gameState(0),
       deathAttackerObjectIndex(0xffff), omnipotent(false),
-      deathTransitionPending(false), score(0)
+      deathTransitionPending(false), endingRequested(false), score(0)
 {
 }
 
