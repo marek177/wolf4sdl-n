@@ -96,6 +96,10 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
         n3d::runtimeProjectilesConst();
     printf("  projectile pool : %u / 8 active\n",
            projectiles ? projectiles->activeCount() : 0u);
+    printf("  exploding walls : %u active\n",
+           projectiles
+               ? (unsigned)projectiles->explodingWalls().size()
+               : 0u);
     if(objects)
     {
         const n3d::InventoryState &inv = objects->inventory();
@@ -109,7 +113,7 @@ int N3D_RunBootstrap(const char *dataDir, int episode, int level)
                (unsigned)inv.gameState,
                inv.omnipotent ? 1u : 0u);
     }
-    printf("\nStage 10 complete: runtime includes bidirectional combat, hitscan and the 8-slot projectile core.\n");
+    printf("\nStage 11 complete: runtime includes IMG SEQDEF projectile/impact animation and explodable-wall lifecycle.\n");
 
     return 0;
 }
