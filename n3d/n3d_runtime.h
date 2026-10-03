@@ -33,6 +33,8 @@ const GuardRuntime *runtimeGuardsConst();
 ProjectileRuntime *runtimeProjectiles();
 const ProjectileRuntime *runtimeProjectilesConst();
 bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out);
+bool runtimeWorldObjectTexture(size_t objectIndex,
+                               ObjectTextureView &out);
 
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData);
 void runtimeObjectTouchQuery(int tileX, int tileY,
