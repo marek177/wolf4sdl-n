@@ -1720,6 +1720,157 @@ static void N3D_DrawObjectSprites(void)
     }
 }
 
+static void N3D_DrawProjectileSprites(void)
+{
+    const n3d::ProjectileRuntime *projectiles =
+        n3d::runtimeProjectilesConst();
+    if(!projectiles || !player)
+        return;
+
+    struct VisibleProjectile
+    {
+        size_t slotIndex;
+        short screenX;
+        short projectedHeight;
+    };
+
+    std::vector<VisibleProjectile> visible;
+    visible.reserve(n3d::ProjectileRuntime::SlotCount);
+
+    const int32_t playerWorldX = player->x >> 10;
+    const int32_t playerWorldY = player->y >> 10;
+
+    for(size_t i = 0; i < n3d::ProjectileRuntime::SlotCount; ++i)
+    {
+        const n3d::ProjectileSlot &slot = projectiles->slot(i);
+        if(slot.lifecycle == 0)
+            continue;
+
+        const int dx =
+            static_cast<int>(slot.worldX - playerWorldX);
+        const int dy =
+            static_cast<int>(slot.worldY - playerWorldY);
+
+        // Recovered 9E20 presentation gate: skip projection only while the
+        // projectile remains within +/-20 world units on BOTH axes.
+        if(dx >= -20 && dx <= 20 &&
+           dy >= -20 && dy <= 20)
+            continue;
+
+        n3d::ObjectTextureView texture;
+        if(!n3d::runtimeProjectileTexture(i, texture))
+            continue;
+
+        objtype projected;
+        memset(&projected, 0, sizeof(projected));
+        projected.x = slot.worldX << 10;
+        projected.y = slot.worldY << 10;
+        TransformActor(&projected);
+        if(projected.viewheight == 0)
+            continue;
+
+        VisibleProjectile item;
+        item.slotIndex = i;
+        item.screenX = projected.viewx;
+        item.projectedHeight =
+            static_cast<short>(projected.viewheight);
+        visible.push_back(item);
+    }
+
+    // Far to near, matching the OBJECT pass ordering.
+    for(size_t a = 0; a < visible.size(); ++a)
+    {
+        for(size_t b = a + 1; b < visible.size(); ++b)
+        {
+            if(visible[b].projectedHeight <
+               visible[a].projectedHeight)
+            {
+                const VisibleProjectile tmp = visible[a];
+                visible[a] = visible[b];
+                visible[b] = tmp;
+            }
+        }
+    }
+
+    for(size_t i = 0; i < visible.size(); ++i)
+    {
+        const VisibleProjectile &item = visible[i];
+        const n3d::ProjectileSlot &slot =
+            projectiles->slot(item.slotIndex);
+
+        n3d::ObjectTextureView texture;
+        if(!n3d::runtimeProjectileTexture(item.slotIndex, texture))
+            continue;
+
+        int baseSize =
+            static_cast<int>(item.projectedHeight) >> 2;
+        if(baseSize < 1)
+            baseSize = 1;
+
+        int dstWidth =
+            static_cast<int>(
+                (static_cast<unsigned long>(baseSize) *
+                 texture.width + 32u) / 64u);
+        int dstHeight =
+            static_cast<int>(
+                (static_cast<unsigned long>(baseSize) *
+                 texture.height + 32u) / 64u);
+
+        if(dstWidth < 1) dstWidth = 1;
+        if(dstHeight < 1) dstHeight = 1;
+
+        const int verticalPixels =
+            static_cast<int>(
+                (static_cast<unsigned long>(slot.verticalOffset) *
+                 static_cast<unsigned long>(baseSize) + 32u) / 64u);
+
+        const int left =
+            static_cast<int>(item.screenX) - dstWidth / 2;
+        const int top =
+            viewheight / 2 - dstHeight / 2 - verticalPixels;
+
+        for(int dx = 0; dx < dstWidth; ++dx)
+        {
+            const int screenX = left + dx;
+            if(screenX < 0 || screenX >= viewwidth)
+                continue;
+
+            if(wallheight[screenX] >
+               static_cast<int>(item.projectedHeight))
+                continue;
+
+            const unsigned srcX =
+                static_cast<unsigned>(
+                    (static_cast<unsigned long>(dx) *
+                     texture.width) /
+                    static_cast<unsigned>(dstWidth));
+
+            for(int dy = 0; dy < dstHeight; ++dy)
+            {
+                const int screenY = top + dy;
+                if(screenY < 0 || screenY >= viewheight)
+                    continue;
+
+                const unsigned srcY =
+                    static_cast<unsigned>(
+                        (static_cast<unsigned long>(dy) *
+                         texture.height) /
+                        static_cast<unsigned>(dstHeight));
+
+                const byte color =
+                    texture.pixels[
+                        static_cast<size_t>(srcX) *
+                        texture.height + srcY];
+
+                if(color == 0x29)
+                    continue;
+
+                vbuf[screenY * vbufPitch + screenX] = color;
+            }
+        }
+    }
+}
+
 /*
 ========================
 =
@@ -1753,6 +1904,7 @@ void N3D_WallPreviewRefresh(void)
     CalcViewVariables();
     WallRefresh();
     N3D_DrawObjectSprites();
+    N3D_DrawProjectileSprites();
 
     VL_UnlockSurface(screenBuffer);
     vbuf = NULL;
