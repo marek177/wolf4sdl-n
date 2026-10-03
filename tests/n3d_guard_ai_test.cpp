@@ -197,6 +197,33 @@ int main()
         if(!require(g.state == 7, "rear target does not reacquire")) return 1;
     }
 
+    // Second object plane blocks ordinary occupancy but permits class 0x2A.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        n3d::GuardRuntimeRecord &g = guards.guards()[0];
+        g.state = 7;
+
+        world.at(6, 5).objectId = 0x40;
+        world.at(6, 5).objectClass = 0x2B;
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(g.losResult == 0, "blocking object plane stops LOS")) return 1;
+
+        g.state = 7;
+        world.at(6, 5).objectClass = 0x2A;
+        guards.tickPreviewAI(playerX, playerY, 1);
+
+        if(!require(g.losResult == 1, "PERMEABLE object class passes LOS")) return 1;
+        if(!require(g.state == 2, "permeable LOS can reacquire")) return 1;
+    }
+
     // State 3 perception failure jumps directly into strategy-0 planning.
     {
         n3d::EpisodeData episode;
