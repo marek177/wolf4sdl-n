@@ -19,7 +19,16 @@ jobs:
       - name: Compile Nitemare3D core
         run: |
           mkdir -p build/n3d-core
-          for src in             n3d/n3d_data.cpp             n3d/n3d_world.cpp             n3d/n3d_collision.cpp             n3d/n3d_door.cpp             n3d/n3d_object.cpp             n3d/n3d_render_bridge.cpp             n3d/n3d_runtime.cpp             n3d/n3d_main.cpp
+          for src in \
+            n3d/n3d_data.cpp \
+            n3d/n3d_world.cpp \
+            n3d/n3d_collision.cpp \
+            n3d/n3d_door.cpp \
+            n3d/n3d_guard.cpp \
+            n3d/n3d_object.cpp \
+            n3d/n3d_render_bridge.cpp \
+            n3d/n3d_runtime.cpp \
+            n3d/n3d_main.cpp
           do
             obj="build/n3d-core/$(basename "${src%.cpp}").o"
             g++ -std=c++98 -Wall -Wextra -Werror -pedantic -I. -In3d -c "$src" -o "$obj"
