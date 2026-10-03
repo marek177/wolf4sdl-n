@@ -7,6 +7,8 @@
 #include "wl_atmos.h"
 #include "wl_shade.h"
 #include "n3d/n3d_runtime.h"
+#include <algorithm>
+#include <vector>
 
 /*
 =============================================================================
@@ -1588,6 +1590,115 @@ void WallRefresh (void)
 }
 
 
+struct N3DVisibleObject
+{
+    const n3d::RuntimeObject *object;
+    short screenX;
+    short projectedHeight;
+};
+
+static bool N3DVisibleObjectLess(const N3DVisibleObject &a,
+                                 const N3DVisibleObject &b)
+{
+    return a.projectedHeight < b.projectedHeight;
+}
+
+static void N3D_DrawObjectSprites(void)
+{
+    const n3d::ObjectRuntime *runtime = n3d::runtimeObjectsConst();
+    if(!runtime)
+        return;
+
+    std::vector<N3DVisibleObject> visible;
+    visible.reserve(runtime->objects().size());
+
+    for(size_t i = 0; i < runtime->objects().size(); ++i)
+    {
+        const n3d::RuntimeObject &object = runtime->objects()[i];
+        if(!object.active)
+            continue;
+
+        n3d::ObjectTextureView texture;
+        if(!n3d::runtimeObjectTexture(object.objectId, texture))
+            continue;
+
+        short sx = 0;
+        short ph = 0;
+        TransformTile(object.tileX, object.tileY, &sx, &ph);
+        if(ph <= 0)
+            continue;
+
+        N3DVisibleObject item;
+        item.object = &object;
+        item.screenX = sx;
+        item.projectedHeight = ph;
+        visible.push_back(item);
+    }
+
+    std::sort(visible.begin(), visible.end(), N3DVisibleObjectLess);
+
+    for(size_t i = 0; i < visible.size(); ++i)
+    {
+        const N3DVisibleObject &item = visible[i];
+
+        n3d::ObjectTextureView texture;
+        if(!n3d::runtimeObjectTexture(item.object->objectId, texture))
+            continue;
+
+        // Match Wolf's 64-pixel sprite projection scale first, then preserve
+        // the native N3D frame aspect ratio for non-64x64 object frames.
+        int baseSize = static_cast<int>(item.projectedHeight) >> 2;
+        if(baseSize < 1)
+            baseSize = 1;
+
+        int dstWidth =
+            static_cast<int>((static_cast<unsigned long>(baseSize) * texture.width + 32u) / 64u);
+        int dstHeight =
+            static_cast<int>((static_cast<unsigned long>(baseSize) * texture.height + 32u) / 64u);
+
+        if(dstWidth < 1) dstWidth = 1;
+        if(dstHeight < 1) dstHeight = 1;
+
+        const int left = static_cast<int>(item.screenX) - dstWidth / 2;
+        const int top = viewheight / 2 - dstHeight / 2;
+
+        for(int dx = 0; dx < dstWidth; ++dx)
+        {
+            const int screenX = left + dx;
+            if(screenX < 0 || screenX >= viewwidth)
+                continue;
+
+            // Same wall/sprite ownership test used by Wolf ScaleShape().
+            if(wallheight[screenX] > static_cast<int>(item.projectedHeight))
+                continue;
+
+            const unsigned srcX =
+                static_cast<unsigned>((static_cast<unsigned long>(dx) * texture.width) /
+                                      static_cast<unsigned>(dstWidth));
+
+            for(int dy = 0; dy < dstHeight; ++dy)
+            {
+                const int screenY = top + dy;
+                if(screenY < 0 || screenY >= viewheight)
+                    continue;
+
+                const unsigned srcY =
+                    static_cast<unsigned>((static_cast<unsigned long>(dy) * texture.height) /
+                                          static_cast<unsigned>(dstHeight));
+
+                const byte color =
+                    texture.pixels[static_cast<size_t>(srcX) * texture.height + srcY];
+
+                // Recovered Nitemare3D sprite transparency palette index.
+                if(color == 0x29)
+                    continue;
+
+                vbuf[screenY * vbufPitch + screenX] = color;
+            }
+        }
+    }
+}
+
 /*
 ========================
 =
@@ -1620,6 +1731,7 @@ void N3D_WallPreviewRefresh(void)
 
     CalcViewVariables();
     WallRefresh();
+    N3D_DrawObjectSprites();
 
     VL_UnlockSurface(screenBuffer);
     vbuf = NULL;
