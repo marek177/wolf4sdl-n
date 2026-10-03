@@ -92,6 +92,30 @@ bool WallTextureBridge::texture(uint8_t wallId, WallTextureView &out) const
     return true;
 }
 
+bool WallTextureBridge::sequenceTexture(uint8_t wallId,
+                                        unsigned frameIndex,
+                                        WallTextureView &out) const
+{
+    out = WallTextureView();
+
+    const ImgFrame *frame =
+        img_.wallSequenceFrame(wallId, frameIndex);
+    if(!frame || frame->height != 64 || frame->width == 0 ||
+       frame->pixels.empty())
+        return false;
+
+    const size_t expected =
+        static_cast<size_t>(frame->width) * 64u;
+    if(frame->pixels.size() != expected)
+        return false;
+
+    out.pixels = &frame->pixels[0];
+    out.width = frame->width;
+    out.height = frame->height;
+    out.fileOffset = frame->fileOffset;
+    return true;
+}
+
 const uint8_t *WallTextureBridge::columnFromWolfFixed(uint8_t wallId,
                                                        int32_t alongWallFixed,
                                                        bool reverse,
@@ -116,6 +140,34 @@ const uint8_t *WallTextureBridge::columnFromWolfFixed(uint8_t wallId,
         *widthOut = view.width;
 
     // IMG pixel payloads are x-major/column-major. A wall column is 64 bytes.
+    return view.pixels + static_cast<size_t>(u) * 64u;
+}
+
+const uint8_t *WallTextureBridge::columnFromWolfFixedFrame(
+    uint8_t wallId,
+    unsigned frameIndex,
+    int32_t alongWallFixed,
+    bool reverse,
+    unsigned *uOut,
+    unsigned *widthOut) const
+{
+    WallTextureView view;
+    if(!sequenceTexture(wallId, frameIndex, view))
+        return 0;
+
+    const uint32_t fixed =
+        static_cast<uint32_t>(alongWallFixed);
+    unsigned u = static_cast<unsigned>(fixed >> 10);
+    u %= view.width;
+
+    if(reverse)
+        u = view.width - 1u - u;
+
+    if(uOut)
+        *uOut = u;
+    if(widthOut)
+        *widthOut = view.width;
+
     return view.pixels + static_cast<size_t>(u) * 64u;
 }
 
