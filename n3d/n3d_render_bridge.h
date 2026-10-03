@@ -39,6 +39,9 @@ class ObjectTextureBridge
 public:
     explicit ObjectTextureBridge(const ImgArchive &img) : img_(img) {}
     bool texture(uint8_t objectId, ObjectTextureView &out) const;
+    bool sequenceTexture(uint8_t objectId,
+                         unsigned frameIndex,
+                         ObjectTextureView &out) const;
 
 private:
     const ImgArchive &img_;
