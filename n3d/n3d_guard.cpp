@@ -430,6 +430,11 @@ void GuardRuntime::markProjectedObject(size_t objectIndex,
         guards_[object.guardIndex].renderStamp = renderGeneration_;
 }
 
+uint32_t GuardRuntime::nextGameplayRandom()
+{
+    return nextPreviewRandom();
+}
+
 uint32_t GuardRuntime::nextPreviewRandom()
 {
     // Original DOS/Win16 32-bit LCG. Arithmetic intentionally wraps mod 2^32.
