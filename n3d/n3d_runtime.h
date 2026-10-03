@@ -3,6 +3,7 @@
 
 #include "n3d_door.h"
 #include "n3d_object.h"
+#include "n3d_render_bridge.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -25,6 +26,7 @@ DoorRuntime *runtimeDoors();
 const DoorRuntime *runtimeDoorsConst();
 ObjectRuntime *runtimeObjects();
 const ObjectRuntime *runtimeObjectsConst();
+bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out);
 
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData);
 void runtimeObjectTouchQuery(int tileX, int tileY,
