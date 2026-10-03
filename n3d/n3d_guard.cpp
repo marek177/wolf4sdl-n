@@ -38,7 +38,7 @@ GuardRuntimeRecord::GuardRuntimeRecord()
 }
 
 GuardRuntime::GuardRuntime()
-    : world_(0), map_(0), objects_(0), doors_(0)
+    : world_(0), map_(0), objects_(0), doors_(0), previewRng_(0x4e334431UL)
 {
 }
 
@@ -110,6 +110,7 @@ bool GuardRuntime::build(WorldState &world,
     objects_ = &objects;
     doors_ = doors;
     guards_.clear();
+    previewRng_ = 0x4e334431UL;
 
     std::vector<RuntimeObject> &runtimeObjects = objects.objects();
 
@@ -203,6 +204,232 @@ void GuardRuntime::updateRenderFacing(RuntimeObject &object,
     if(candidate < 256 &&
        map_->objectClass(static_cast<uint8_t>(candidate)) == object.objectClass)
         object.renderObjectId = static_cast<uint8_t>(candidate);
+}
+
+
+uint32_t GuardRuntime::nextPreviewRandom()
+{
+    // Deterministic preview-only RNG. The recovered AI branch structure and
+    // ranges are original; exact original RNG parity is kept separate.
+    previewRng_ = previewRng_ * 1664525UL + 1013904223UL;
+    return previewRng_;
+}
+
+bool GuardRuntime::traceGridLine(int startX, int startY,
+                                 int deltaX, int deltaY,
+                                 int maxSteps,
+                                 bool testObjectPlane) const
+{
+    if(!world_)
+        return false;
+
+    const int targetX = startX + deltaX;
+    const int targetY = startY + deltaY;
+
+    const int stepX = deltaX < 0 ? -1 : 1;
+    const int stepY = deltaY < 0 ? -1 : 1;
+    const int absX = absInt(deltaX);
+    const int absY = absInt(deltaY);
+    const bool yMajor = absX <= absY;
+
+    int doubledMinor;
+    int error;
+    int doubledError;
+
+    if(yMajor)
+    {
+        doubledMinor = absX * 2;
+        error = doubledMinor - absY;
+        doubledError = (absX - absY) * 2;
+    }
+    else
+    {
+        doubledMinor = absY * 2;
+        error = doubledMinor - absX;
+        doubledError = (absY - absX) * 2;
+    }
+
+    int x = startX;
+    int y = startY;
+
+    for(int step = 0; step < maxSteps; ++step)
+    {
+        if(yMajor)
+            y += stepY;
+        else
+            x += stepX;
+
+        if(error < 0)
+            error += doubledMinor;
+        else
+        {
+            error += doubledError;
+            if(yMajor)
+                x += stepX;
+            else
+                y += stepY;
+        }
+
+        // The original returns success as soon as the target cell is reached,
+        // before testing the target cell itself for obstruction.
+        if(x == targetX && y == targetY)
+            return true;
+
+        if(x < 0 || y < 0 ||
+           x >= WorldState::Width || y >= WorldState::Height)
+            return false;
+
+        const WorldCell &cell =
+            world_->at(static_cast<size_t>(x), static_cast<size_t>(y));
+
+        const uint8_t wallFlags = wallPropertiesForClass(cell.wallClass);
+        if((wallFlags & 0x02) != 0)
+        {
+            if((wallFlags & 0x04) != 0)
+                return false;
+
+            if((wallFlags & 0x08) != 0)
+            {
+                if(!doors_ || !doors_->allowsPassage(x, y))
+                    return false;
+            }
+        }
+
+        if(testObjectPlane)
+        {
+            const uint8_t objectFlags =
+                objectPropertiesForClass(cell.objectClass);
+            if((objectFlags & 0x02) != 0 &&
+               (objectFlags & 0x20) == 0)
+                return false;
+        }
+    }
+
+    return false;
+}
+
+bool GuardRuntime::testLineOfSight(const GuardRuntimeRecord &guard,
+                                   const RuntimeObject &object,
+                                   int32_t playerWorldX,
+                                   int32_t playerWorldY,
+                                   bool bypassFacing,
+                                   bool testObjectPlane) const
+{
+    const int guardCellX = static_cast<int>(worldToTile(object.worldX));
+    const int guardCellY = static_cast<int>(worldToTile(object.worldY));
+    const int playerCellX = static_cast<int>(worldToTile(playerWorldX));
+    const int playerCellY = static_cast<int>(worldToTile(playerWorldY));
+
+    const int dx = playerCellX - guardCellX;
+    const int dy = playerCellY - guardCellY;
+    const int absX = absInt(dx);
+    const int absY = absInt(dy);
+
+    if(absX > 8 || absY > 8)
+        return false;
+
+    if(!bypassFacing)
+    {
+        const uint8_t majorMask = absX < absY ? 0x99u : 0x66u;
+        const uint8_t ySignMask = dy < 0 ? 0xc3u : 0x3cu;
+        const uint8_t xSignMask = dx < 0 ? 0xf0u : 0x0fu;
+        const unsigned facing = guard.facing & 7u;
+        const uint8_t facingMask = static_cast<uint8_t>(
+            (1u << ((facing + 7u) & 7u)) |
+            (1u << facing) |
+            (1u << ((facing + 1u) & 7u)));
+
+        if((facingMask & majorMask & ySignMask & xSignMask) == 0)
+            return false;
+    }
+
+    return traceGridLine(guardCellX, guardCellY,
+                         dx, dy, 8, testObjectPlane);
+}
+
+bool GuardRuntime::updatePerception(GuardRuntimeRecord &guard,
+                                    const RuntimeObject &object,
+                                    int32_t playerWorldX,
+                                    int32_t playerWorldY,
+                                    bool bypassFacing,
+                                    bool testObjectPlane) const
+{
+    guard.losResult =
+        testLineOfSight(guard, object,
+                        playerWorldX, playerWorldY,
+                        bypassFacing, testObjectPlane) ? 1 : 0;
+
+    const int dx =
+        absInt(static_cast<int>(playerWorldX - object.worldX));
+    const int dy =
+        absInt(static_cast<int>(playerWorldY - object.worldY));
+    guard.proximityResult = (dx <= 64 && dy <= 64) ? 1 : 0;
+
+    if(guard.perceptionMode == 0)
+        return guard.proximityResult != 0;
+    if(guard.perceptionMode == 1 || guard.perceptionMode == 2)
+        return guard.losResult != 0;
+
+    return false;
+}
+
+void GuardRuntime::planStrategy0(GuardRuntimeRecord &guard,
+                                 const RuntimeObject &object,
+                                 int32_t playerWorldX,
+                                 int32_t playerWorldY,
+                                 int difficultyCode)
+{
+    int coarseX = static_cast<int>(playerWorldX - object.worldX);
+    int coarseY = static_cast<int>(playerWorldY - object.worldY);
+
+    // Original signed divide-by-32 uses truncation toward zero.
+    coarseX /= 32;
+    coarseY /= 32;
+
+    const unsigned randomChoice =
+        static_cast<unsigned>(nextPreviewRandom()) &
+        (guard.losResult == 0 ? 3u : 7u);
+
+    if(randomChoice == 0)
+    {
+        if(coarseX == 0) guard.moveX = 8;
+        if(coarseY == 0) guard.moveY = 8;
+    }
+    else if(randomChoice == 1)
+    {
+        if(coarseX == 0) guard.moveX = -8;
+        if(coarseY == 0) guard.moveY = -8;
+    }
+    else
+    {
+        guard.moveX = coarseX < 0 ? -8 : (coarseX > 0 ? 8 : 0);
+        guard.moveY = coarseY < 0 ? -8 : (coarseY > 0 ? 8 : 0);
+    }
+
+    if(guard.proximityResult != 0)
+    {
+        guard.timer = 8;
+    }
+    else if(guard.losResult == 0)
+    {
+        guard.timer = 0x18;
+    }
+    else
+    {
+        unsigned timer =
+            static_cast<unsigned>(nextPreviewRandom() % 8u) + 8u;
+
+        // Nitemare3D difficulty codes: 0 doubles, 2 halves, 1 unchanged.
+        if(difficultyCode == 2)
+            timer >>= 1;
+        else if(difficultyCode == 0)
+            timer <<= 1;
+
+        guard.timer = static_cast<uint16_t>(timer);
+    }
+
+    guard.state = 6;
+    guard.facing = facingFromVector(guard.moveX, guard.moveY, guard.facing);
 }
 
 bool GuardRuntime::candidateBlocked(size_t guardIndex,
@@ -306,7 +533,9 @@ void GuardRuntime::commitObjectPosition(size_t guardIndex,
     updateRenderFacing(object, guard);
 }
 
-void GuardRuntime::tickPreviewMovement(int32_t playerWorldX, int32_t playerWorldY)
+void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
+                                 int32_t playerWorldY,
+                                 int difficultyCode)
 {
     if(!objects_)
         return;
@@ -323,38 +552,114 @@ void GuardRuntime::tickPreviewMovement(int32_t playerWorldX, int32_t playerWorld
         if(!object.active || guard.hp == 0)
             continue;
 
-        // First integration milestone: move states that already carry a
-        // recovered movement vector. Perception/attack transitions are not
-        // synthesized here.
-        if(guard.state != 6 && guard.state != 7 && guard.state != 8)
-            continue;
+        bool shouldMove = false;
 
-        int32_t newX = object.worldX;
-        int32_t newY = object.worldY;
-
-        if(guard.moveX != 0)
+        switch(guard.state)
         {
-            const int32_t candidateX = newX + guard.moveX;
-            if(!candidateBlocked(i, candidateX, newY,
-                                 playerWorldX, playerWorldY))
-                newX = candidateX;
+            case 2:
+                // Sequence setup/sound are presentation layers. The recovered
+                // state transition itself enters perception state 3.
+                guard.state = 3;
+                break;
+
+            case 3:
+                if(updatePerception(guard, object,
+                                    playerWorldX, playerWorldY,
+                                    false, true))
+                    guard.state = 4; // attack-ready; attack execution pending
+                else
+                    guard.state = 5;
+                break;
+
+            case 4:
+                // Preserve attack-ready state while perception succeeds.
+                // Weapon/contact execution is deliberately not synthesized.
+                if(!updatePerception(guard, object,
+                                     playerWorldX, playerWorldY,
+                                     false, true))
+                    guard.state = 5;
+                break;
+
+            case 5:
+                if(guard.strategy == 0 ||
+                   (guard.strategy == 1 && guard.hp >= 0x7f))
+                {
+                    planStrategy0(guard, object,
+                                  playerWorldX, playerWorldY,
+                                  difficultyCode);
+                    shouldMove = true; // original planner moves immediately
+                }
+                break;
+
+            case 6:
+                shouldMove = true;
+                if(guard.timer > 0)
+                    --guard.timer;
+                if(guard.timer == 0)
+                    guard.state = 3;
+                break;
+
+            case 7:
+                // Reacquire state: no ordinary movement in the recovered
+                // dispatcher. Strategy-3 state-13 branch is deferred.
+                if(guard.strategy != 3 &&
+                   updatePerception(guard, object,
+                                    playerWorldX, playerWorldY,
+                                    false, true))
+                    guard.state = 2;
+                break;
+
+            case 8:
+                // State 8 performs its movement/marker work first, then only
+                // reacquires when nextState is 2.
+                shouldMove = true;
+                break;
+
+            default:
+                break;
         }
 
-        if(guard.moveY != 0)
+        if(shouldMove)
         {
-            const int32_t candidateY = newY + guard.moveY;
-            if(!candidateBlocked(i, newX, candidateY,
-                                 playerWorldX, playerWorldY))
-                newY = candidateY;
+            int32_t newX = object.worldX;
+            int32_t newY = object.worldY;
+
+            if(guard.moveX != 0)
+            {
+                const int32_t candidateX = newX + guard.moveX;
+                if(!candidateBlocked(i, candidateX, newY,
+                                     playerWorldX, playerWorldY))
+                    newX = candidateX;
+            }
+
+            if(guard.moveY != 0)
+            {
+                const int32_t candidateY = newY + guard.moveY;
+                if(!candidateBlocked(i, newX, candidateY,
+                                     playerWorldX, playerWorldY))
+                    newY = candidateY;
+            }
+
+            if(newX != object.worldX || newY != object.worldY)
+            {
+                const int actualDx = static_cast<int>(newX - object.worldX);
+                const int actualDy = static_cast<int>(newY - object.worldY);
+                guard.facing =
+                    facingFromVector(actualDx, actualDy, guard.facing);
+                commitObjectPosition(i, object.worldX, object.worldY,
+                                     newX, newY);
+            }
         }
 
-        if(newX != object.worldX || newY != object.worldY)
+        if(guard.state == 8 && guard.nextState == 2)
         {
-            const int actualDx = static_cast<int>(newX - object.worldX);
-            const int actualDy = static_cast<int>(newY - object.worldY);
-            guard.facing = facingFromVector(actualDx, actualDy, guard.facing);
-            commitObjectPosition(i, object.worldX, object.worldY, newX, newY);
+            if(updatePerception(guard, object,
+                                playerWorldX, playerWorldY,
+                                false, true))
+                guard.state = 2;
         }
+
+        updateRenderFacing(object, guard);
     }
 }
 
