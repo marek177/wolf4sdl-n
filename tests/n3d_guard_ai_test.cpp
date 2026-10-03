@@ -150,6 +150,10 @@ bool writeSyntheticMap(const char *path)
     for(int id = 11; id <= 19; ++id)
         bytes[0x002 + id] = 0x42;
     bytes[0x002 + 20] = 0x46; // ACTIONSPOT
+    bytes[0x002 + 0x30] = 0x3B; // DOORVR remote group 0
+    bytes[0x002 + 0x32] = 0x3B; // DOORVR remote group 1
+    bytes[0x002 + 0x31] = 0x3C; // DOORHR remote group 0
+    bytes[0x002 + 0x33] = 0x3C; // DOORHR remote group 1
 
     // object IDs 1..4 -> START class 2 (N/E/S/W)
     for(int id = 1; id <= 4; ++id)
@@ -528,6 +532,74 @@ int main()
                     "flying GUARD reaches lower bob bound 10")) return 1;
         if(!require(g.verticalBobStep == 1,
                     "lower bob bound reverses direction")) return 1;
+    }
+
+    // Remote door groups are class-relative #1/#2 selectors.
+    // Open accepts states 1/3 -> 2, close accepts 0/2 -> 3, and the
+    // selected group bit toggles after either command.
+    {
+        n3d::EpisodeData episode;
+        n3d::WorldState world;
+        n3d::ObjectRuntime objects;
+        n3d::DoorRuntime doors;
+        n3d::GuardRuntime guards;
+        if(!buildFixture(episode, world, objects, doors, guards))
+            return 1;
+
+        world.at(2, 2).wallId = 0x30;
+        world.at(2, 2).wallClass = 0x3B;
+
+        world.at(10, 2).wallId = 0x32;
+        world.at(10, 2).wallClass = 0x3B;
+
+        world.at(20, 10).wallId = 0x33;
+        world.at(20, 10).wallClass = 0x3C;
+
+        std::string error;
+        if(!doors.build(world, episode.map, error))
+        {
+            std::cerr << error << "\n";
+            return 1;
+        }
+
+        const n3d::DoorController *group0 = doors.find(2, 2);
+        const n3d::DoorController *group1v = doors.find(10, 2);
+        const n3d::DoorController *group1h = doors.find(20, 10);
+
+        if(!require(group0 && group0->remoteGroup == 0,
+                    "remote DOORVR #1 derives group 0")) return 1;
+        if(!require(group1v && group1v->remoteGroup == 1,
+                    "remote DOORVR #2 derives group 1")) return 1;
+        if(!require(group1h && group1h->remoteGroup == 1,
+                    "remote DOORHR #2 derives group 1")) return 1;
+
+        const unsigned opened = doors.applyRemoteGroup(1, true);
+        if(!require(opened == 2,
+                    "remote group-1 open changes both matching records")) return 1;
+        if(!require(doors.find(10, 2)->state == n3d::DoorOpening &&
+                    doors.find(20, 10)->state == n3d::DoorOpening,
+                    "remote open maps states 1/3 to opening state 2")) return 1;
+        if(!require(doors.find(2, 2)->state == n3d::DoorClosed,
+                    "remote group command leaves other groups unchanged")) return 1;
+        if(!require(doors.remoteGroupMask() == 0x02,
+                    "remote open toggles selected group bit on")) return 1;
+
+        const unsigned closed = doors.applyRemoteGroup(1, false);
+        if(!require(closed == 2,
+                    "remote group-1 close changes both matching records")) return 1;
+        if(!require(doors.find(10, 2)->state == n3d::DoorClosing &&
+                    doors.find(20, 10)->state == n3d::DoorClosing,
+                    "remote close maps states 0/2 to closing state 3")) return 1;
+        if(!require(doors.remoteGroupMask() == 0,
+                    "remote close toggles selected group bit off")) return 1;
+
+        guards.setCannonAttackEnabled(true);
+        guards.toggleCannonAttackEnabled();
+        if(!require(!guards.cannonAttackEnabled(),
+                    "remote Cannon command XOR disables enabled cycle")) return 1;
+        guards.toggleCannonAttackEnabled();
+        if(!require(guards.cannonAttackEnabled(),
+                    "second raw Cannon command XOR re-enables cycle")) return 1;
     }
 
     // Strategy-1 low-HP FLEE chooses the nearest LOS-valid door,
