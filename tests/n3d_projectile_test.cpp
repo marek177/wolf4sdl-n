@@ -218,7 +218,7 @@ bool buildFixture(Fixture &f)
 
     f.objects.bindDoors(&f.doors);
 
-    if(!f.guards.build(f.world, f.episode.map, f.objects, &f.doors,
+    if(!f.guards.build(f.world, f.episode.map, f.episode.img, f.objects, &f.doors,
                        f.episode.episode, error))
     {
         std::cerr << error << "\n";
