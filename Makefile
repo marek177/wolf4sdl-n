@@ -65,6 +65,7 @@ SRCS += n3d/n3d_guard.cpp
 SRCS += n3d/n3d_main.cpp
 SRCS += n3d/n3d_object.cpp
 SRCS += n3d/n3d_preview.cpp
+SRCS += n3d/n3d_projectile.cpp
 SRCS += n3d/n3d_render_bridge.cpp
 SRCS += n3d/n3d_runtime.cpp
 SRCS += n3d/n3d_world.cpp
