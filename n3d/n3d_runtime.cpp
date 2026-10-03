@@ -269,6 +269,30 @@ bool runtimeRemoteCannonEnabled()
     return g_active && g_guards.cannonAttackEnabled();
 }
 
+RemoteControlResult runtimeApplyRemoteControl(
+    RemoteControlCommand command,
+    unsigned group)
+{
+    RemoteControlResult result;
+
+    if(!g_active)
+        return result;
+
+    if(command == RemoteOpenDoors)
+        result.doorsChanged =
+            g_doors.applyRemoteGroup(group, true);
+    else if(command == RemoteCloseDoors)
+        result.doorsChanged =
+            g_doors.applyRemoteGroup(group, false);
+    else if(command == RemoteEnableCannons ||
+            command == RemoteDisableCannons)
+        g_guards.toggleCannonAttackEnabled();
+
+    result.doorGroupMask = g_doors.remoteGroupMask();
+    result.cannonEnabled = g_guards.cannonAttackEnabled();
+    return result;
+}
+
 unsigned runtimeActivateActionSpotDancers()
 {
     return g_active ? g_guards.activateActionSpotDancers() : 0u;
