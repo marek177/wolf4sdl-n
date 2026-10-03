@@ -44,6 +44,7 @@ struct DoorController
     int motion; // 0..64 world units of opening progress.
     bool latch;
     uint8_t credentialSelector;
+    uint8_t remoteGroup;
 
     DoorController();
 };
@@ -51,7 +52,8 @@ struct DoorController
 class DoorRuntime
 {
 public:
-    DoorRuntime() : world_(0), keyMask_(0), idCardMask_(0) {}
+    DoorRuntime()
+        : world_(0), keyMask_(0), idCardMask_(0), remoteGroupMask_(0) {}
     bool build(const WorldState &world, const MapArchive &map, std::string &error);
 
     const std::vector<DoorController> &controllers() const { return controllers_; }
@@ -69,6 +71,9 @@ public:
     uint8_t idCardMask() const { return idCardMask_; }
     void grantKey(unsigned selector);
     void grantIdCard(unsigned selector);
+
+    unsigned applyRemoteGroup(unsigned group, bool open);
+    uint8_t remoteGroupMask() const { return remoteGroupMask_; }
 
     // One original-style geometry/motion update. States 2/3 advance by
     // exactly two Nitemare3D world units.
@@ -88,6 +93,7 @@ private:
     std::vector<DoorController> controllers_;
     uint8_t keyMask_;
     uint8_t idCardMask_;
+    uint8_t remoteGroupMask_;
 };
 
 bool isDoorClass(uint8_t wallClass);
