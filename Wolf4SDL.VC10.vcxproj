@@ -102,6 +102,7 @@
     <ClCompile Include="n3d\\n3d_main.cpp" />
     <ClCompile Include="n3d\\n3d_object.cpp" />
     <ClCompile Include="n3d\\n3d_preview.cpp" />
+    <ClCompile Include="n3d\\n3d_projectile.cpp" />
     <ClCompile Include="n3d\\n3d_render_bridge.cpp" />
     <ClCompile Include="n3d\\n3d_runtime.cpp" />
     <ClCompile Include="n3d\\n3d_world.cpp" />
@@ -167,6 +168,7 @@
     <ClInclude Include="n3d\\n3d_main.h" />
     <ClInclude Include="n3d\\n3d_object.h" />
     <ClInclude Include="n3d\\n3d_preview.h" />
+    <ClInclude Include="n3d\\n3d_projectile.h" />
     <ClInclude Include="n3d\\n3d_render_bridge.h" />
     <ClInclude Include="n3d\\n3d_runtime.h" />
     <ClInclude Include="n3d\\n3d_world.h" />
