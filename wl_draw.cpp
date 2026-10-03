@@ -1593,6 +1593,7 @@ void WallRefresh (void)
 struct N3DVisibleObject
 {
     const n3d::RuntimeObject *object;
+    size_t objectIndex;
     short screenX;
     short projectedHeight;
 };
@@ -1608,6 +1609,8 @@ static void N3D_DrawObjectSprites(void)
     const n3d::ObjectRuntime *runtime = n3d::runtimeObjectsConst();
     if(!runtime)
         return;
+
+    n3d::runtimeBeginRenderGeneration();
 
     std::vector<N3DVisibleObject> visible;
     visible.reserve(runtime->objects().size());
@@ -1632,6 +1635,7 @@ static void N3D_DrawObjectSprites(void)
 
         N3DVisibleObject item;
         item.object = &object;
+        item.objectIndex = i;
         item.screenX = projected.viewx;
         item.projectedHeight = static_cast<short>(projected.viewheight);
         visible.push_back(item);
@@ -1661,8 +1665,23 @@ static void N3D_DrawObjectSprites(void)
         if(dstWidth < 1) dstWidth = 1;
         if(dstHeight < 1) dstHeight = 1;
 
+        const int verticalPixels =
+            static_cast<int>((static_cast<unsigned long>(item.object->verticalOffset) *
+                              static_cast<unsigned long>(baseSize) + 32u) / 64u);
+
         const int left = static_cast<int>(item.screenX) - dstWidth / 2;
-        const int top = viewheight / 2 - dstHeight / 2;
+        const int top = viewheight / 2 - dstHeight / 2 - verticalPixels;
+
+        // Native preview viewport is y=4..155, so its absolute center row is
+        // 80. The recovered damage cache stores the projected baseline row.
+        const int projectedBaseline =
+            80 + dstHeight / 2 - verticalPixels;
+
+        n3d::runtimeMarkProjectedObject(item.objectIndex,
+                                        projectedBaseline,
+                                        left,
+                                        left + dstWidth,
+                                        viewwidth / 2);
 
         for(int dx = 0; dx < dstWidth; ++dx)
         {
