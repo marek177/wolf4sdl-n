@@ -69,6 +69,8 @@ bool runtimeProjectileTexture(size_t slotIndex,
                               ObjectTextureView &out);
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
+                                 int tileX,
+                                 int tileY,
                                  int32_t alongWallFixed,
                                  bool reverse,
                                  unsigned *uOut,
