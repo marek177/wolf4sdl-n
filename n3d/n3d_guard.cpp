@@ -1660,13 +1660,15 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 refreshDirectionalSequence(guard, object,
                                            playerWorldX, playerWorldY,
                                            false);
-                // Reacquire state: no ordinary movement in the recovered
-                // dispatcher. Strategy-3 state-13 branch is deferred.
-                if(guard.strategy != 3 &&
-                   updatePerception(guard, object,
+                if(updatePerception(guard, object,
                                     playerWorldX, playerWorldY,
                                     false, true))
-                    guard.state = 2;
+                {
+                    if(guard.strategy == 3)
+                        beginState13Displacement(guard);
+                    else
+                        guard.state = 2;
+                }
                 break;
 
             case 8:
@@ -1683,6 +1685,121 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
                 finalizeDeath(guard, object);
                 break;
 
+            case 0x0C:
+            case 0x0D:
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
+                break;
+
+            case 0x0E:
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
+                if(cannonAttackEnabled_)
+                {
+                    guard.timer = 0;
+                    guard.state = 0x0F;
+                }
+                break;
+
+            case 0x0F:
+            {
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
+
+                if(!cannonAttackEnabled_)
+                {
+                    guard.state = 0x0E;
+                    break;
+                }
+
+                const uint16_t oldTimer = guard.timer;
+                guard.timer =
+                    static_cast<uint16_t>(guard.timer - 1u);
+
+                if(oldTimer != 0)
+                    break;
+
+                // Original sets state 0x10 before refreshing the table-B
+                // directional token, then manually uses the token frame-count
+                // byte as the state-0 timer (not count-1).
+                guard.state = 0x10;
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           true);
+
+                const unsigned count =
+                    static_cast<unsigned>(
+                        (guard.sequenceToken >> 8) & 0xffu);
+
+                guard.timer =
+                    static_cast<uint16_t>(count);
+                guard.state = 0;
+                guard.nextState = 0x10;
+                break;
+            }
+
+            case 0x10:
+            {
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
+
+                const uint16_t oldTimer = guard.timer;
+                guard.timer =
+                    static_cast<uint16_t>(guard.timer - 1u);
+
+                if(oldTimer != 0)
+                    break;
+
+                if(updatePerception(guard, object,
+                                    playerWorldX, playerWorldY,
+                                    false, true))
+                {
+                    // Cannon uses the same player-damage receiver; unlike the
+                    // generic state-4 path the raw state-10 handler always
+                    // continues back into its cannon loop afterwards.
+                    attackPlayer(guard, object,
+                                 playerWorldX, playerWorldY,
+                                 difficultyCode);
+                }
+
+                guard.timer = 8;
+                guard.state = 0x0F;
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           true);
+                break;
+            }
+
+            case 0x11:
+                refreshDirectionalSequence(guard, object,
+                                           playerWorldX, playerWorldY,
+                                           false);
+                shouldMove = true;
+
+                if(guard.timer > 0)
+                    --guard.timer;
+
+                if(guard.timer == 0)
+                {
+                    guard.facing =
+                        computeDirectionToPlayer(true, object,
+                                                 playerWorldX,
+                                                 playerWorldY);
+                    guard.moveX = 0;
+                    guard.moveY = 0;
+                    guard.strategy = 0;
+                    guard.state = 7;
+                    refreshDirectionalSequence(guard, object,
+                                               playerWorldX,
+                                               playerWorldY,
+                                               true);
+                }
+                break;
+
             case 0x12:
                 advanceTokenFrame(guard, object, false);
 
@@ -1697,6 +1814,11 @@ void GuardRuntime::tickPreviewAI(int32_t playerWorldX,
 
                 if(guard.timer == 0 && object.verticalOffset == 0)
                     guard.state = guard.nextState;
+                break;
+
+            case 0x13:
+                updateState13Displacement(guard, object,
+                                          playerWorldX, playerWorldY);
                 break;
 
             case 0x15:
