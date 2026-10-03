@@ -64,6 +64,11 @@ bool loadRuntime(const std::string &root, int episode, int level, std::string &e
 
     g_objects.bindAnimation(&g_episode.img, &g_guards);
 
+    // Original MaybeStartE1M9ActionSpotScript activates the Dancers
+    // presentation automatically for episode 1, level 9.
+    if(g_episode.episode == 1 && level == 9)
+        g_guards.activateActionSpotDancers();
+
     g_projectiles.bind(&g_world, &g_objects, &g_doors, &g_guards,
                        &g_episode.map, &g_episode.img);
 
@@ -251,6 +256,22 @@ void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
 {
     if(g_active)
         g_guards.tickPreviewAI(playerWorldX, playerWorldY, difficultyCode);
+}
+
+void runtimeSetRemoteCannonEnabled(bool enabled)
+{
+    if(g_active)
+        g_guards.setCannonAttackEnabled(enabled);
+}
+
+bool runtimeRemoteCannonEnabled()
+{
+    return g_active && g_guards.cannonAttackEnabled();
+}
+
+unsigned runtimeActivateActionSpotDancers()
+{
+    return g_active ? g_guards.activateActionSpotDancers() : 0u;
 }
 
 uint32_t runtimeBeginRenderGeneration()
