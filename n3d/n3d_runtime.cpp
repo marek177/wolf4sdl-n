@@ -284,6 +284,8 @@ bool runtimeProjectileTexture(size_t slotIndex,
 }
 
 const uint8_t *runtimeWallColumn(uint8_t wallId,
+                                 int tileX,
+                                 int tileY,
                                  int32_t alongWallFixed,
                                  bool reverse,
                                  unsigned *uOut,
@@ -293,8 +295,27 @@ const uint8_t *runtimeWallColumn(uint8_t wallId,
         return g_fallbackColumn;
 
     WallTextureBridge bridge(g_episode.img);
+
+    uint8_t animatedWallId = 0;
+    unsigned animatedFrame = 0;
+    if(g_projectiles.explodingWallVisual(tileX, tileY,
+                                         animatedWallId,
+                                         animatedFrame))
+    {
+        const uint8_t *animated =
+            bridge.columnFromWolfFixedFrame(animatedWallId,
+                                            animatedFrame,
+                                            alongWallFixed,
+                                            reverse,
+                                            uOut,
+                                            widthOut);
+        if(animated)
+            return animated;
+    }
+
     const uint8_t *column =
-        bridge.columnFromWolfFixed(wallId, alongWallFixed, reverse, uOut, widthOut);
+        bridge.columnFromWolfFixed(wallId, alongWallFixed,
+                                   reverse, uOut, widthOut);
     return column ? column : g_fallbackColumn;
 }
 
@@ -303,12 +324,24 @@ bool copyWolfTileMap(uint8_t *dest, size_t destBytes)
     if(!g_active || !dest || destBytes < RenderMap::CellCount)
         return false;
 
+    WallTextureBridge textures(g_episode.img);
+
     for(size_t x = 0; x < RenderMap::Width; ++x)
     {
         for(size_t y = 0; y < RenderMap::Height; ++y)
         {
-            const RenderCell &cell = g_renderMap.at(x, y);
-            uint8_t value = cell.opaque ? cell.wallId : 0;
+            const WorldCell &cell = g_world.at(x, y);
+            uint8_t value = 0;
+
+            if(cell.wallId != 0)
+            {
+                WallTextureView view;
+                if(textures.texture(cell.wallId, view) ||
+                   g_projectiles.explodingWallAt(
+                       static_cast<int>(x),
+                       static_cast<int>(y)) != 0)
+                    value = cell.wallId;
+            }
 
             if(g_doors.isDoorCell(static_cast<int>(x), static_cast<int>(y)) &&
                g_doors.allowsPassage(static_cast<int>(x), static_cast<int>(y)))
