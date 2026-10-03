@@ -275,6 +275,12 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                 objectsBefore ? objectsBefore->inventory().keyMask : 0;
             const uint8_t oldIdCardMask =
                 objectsBefore ? objectsBefore->inventory().idCardMask : 0;
+            const uint8_t oldPentagramMask =
+                objectsBefore ? objectsBefore->inventory().pentagramMask : 0;
+            const uint8_t oldOwnedWeapons =
+                objectsBefore ? objectsBefore->inventory().ownedWeapons : 0;
+            const uint32_t oldScore =
+                objectsBefore ? objectsBefore->inventory().score : 0;
 
             n3d::CollisionContext collision;
             collision.doorPassage = &n3d::runtimeDoorPassageQuery;
@@ -306,6 +312,18 @@ int N3D_RunPreview(const char *dataDir, int episode, int level)
                 if(inventory.idCardMask != oldIdCardMask)
                     printf("ID CARD pickup: mask 0x%02X -> 0x%02X\n",
                            (unsigned)oldIdCardMask, (unsigned)inventory.idCardMask);
+                if(inventory.pentagramMask != oldPentagramMask)
+                    printf("PENTAGRAM pickup: mask 0x%02X -> 0x%02X\n",
+                           (unsigned)oldPentagramMask, (unsigned)inventory.pentagramMask);
+                if(inventory.ownedWeapons != oldOwnedWeapons)
+                    printf("WEAPON pickup: owned 0x%02X -> 0x%02X, pending=%u\n",
+                           (unsigned)oldOwnedWeapons,
+                           (unsigned)inventory.ownedWeapons,
+                           (unsigned)inventory.pendingWeapon);
+                if(inventory.score != oldScore)
+                    printf("SCORE: %lu -> %lu\n",
+                           (unsigned long)oldScore,
+                           (unsigned long)inventory.score);
             }
         }
 
