@@ -153,6 +153,29 @@ bool runtimeObjectTexture(uint8_t objectId, ObjectTextureView &out)
     return bridge.texture(objectId, out);
 }
 
+
+bool runtimeWorldObjectTexture(size_t objectIndex,
+                               ObjectTextureView &out)
+{
+    out = ObjectTextureView();
+
+    if(!g_active || objectIndex >= g_objects.objects().size())
+        return false;
+
+    const RuntimeObject &object =
+        g_objects.objects()[objectIndex];
+
+    ObjectTextureBridge bridge(g_episode.img);
+
+    if(object.sequenceObjectId != 0xff &&
+       bridge.sequenceTexture(object.sequenceObjectId,
+                              object.animationFrame,
+                              out))
+        return true;
+
+    return bridge.texture(object.renderObjectId, out);
+}
+
 bool runtimeDoorPassageQuery(int tileX, int tileY, uint8_t wallId, void *userData)
 {
     (void)wallId;
