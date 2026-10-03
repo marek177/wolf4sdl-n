@@ -13,6 +13,24 @@
 
 namespace n3d
 {
+
+enum RemoteControlCommand
+{
+    RemoteOpenDoors = 0x1E,
+    RemoteCloseDoors = 0x1F,
+    RemoteEnableCannons = 0x20,
+    RemoteDisableCannons = 0x21
+};
+
+struct RemoteControlResult
+{
+    unsigned doorsChanged;
+    uint8_t doorGroupMask;
+    bool cannonEnabled;
+
+    RemoteControlResult()
+        : doorsChanged(0), doorGroupMask(0), cannonEnabled(false) {}
+};
 struct EpisodeData;
 struct WorldState;
 struct RenderMap;
@@ -52,6 +70,8 @@ void runtimeTickGuards(int32_t playerWorldX, int32_t playerWorldY,
                        int difficultyCode);
 void runtimeSetRemoteCannonEnabled(bool enabled);
 bool runtimeRemoteCannonEnabled();
+RemoteControlResult runtimeApplyRemoteControl(RemoteControlCommand command,
+                                              unsigned group);
 unsigned runtimeActivateActionSpotDancers();
 
 uint32_t runtimeBeginRenderGeneration();
