@@ -2,6 +2,7 @@
 
 #include "n3d_collision.h"
 #include "n3d_door.h"
+#include "n3d_guard.h"
 
 namespace n3d
 {
@@ -30,7 +31,7 @@ InventoryState::InventoryState()
 }
 
 ObjectRuntime::ObjectRuntime()
-    : world_(0), map_(0), doors_(0)
+    : world_(0), map_(0), img_(0), doors_(0), guards_(0)
 {
 }
 
@@ -40,7 +41,9 @@ bool ObjectRuntime::build(WorldState &world,
 {
     world_ = &world;
     map_ = &map;
+    img_ = 0;
     doors_ = 0;
+    guards_ = 0;
     objects_.clear();
     inventory_ = InventoryState();
 
@@ -220,6 +223,184 @@ bool ObjectRuntime::occupiedAt(int tileX, int tileY) const
             return true;
     }
     return false;
+}
+
+uint8_t ObjectRuntime::directionToPlayer(
+    const RuntimeObject &object,
+    int32_t playerWorldX,
+    int32_t playerWorldY) const
+{
+    const int dx = static_cast<int>(playerWorldX - object.worldX);
+    const int dy = static_cast<int>(playerWorldY - object.worldY);
+    const int ax = dx < 0 ? -dx : dx;
+    const int ay = dy < 0 ? -dy : dy;
+
+    if(dx >= 0)
+    {
+        if(dy < 0)
+            return ay <= ax ? 1u : 0u;
+        return ax < ay ? 3u : 2u;
+    }
+
+    if(dy >= 0)
+        return ay <= ax ? 5u : 4u;
+
+    return ay <= ax ? 6u : 7u;
+}
+
+uint16_t ObjectRuntime::chooseAnimationAlternative(
+    RuntimeObject &object,
+    const ImgSequenceDef &sequence)
+{
+    for(unsigned attempts = 0; attempts < 64u; ++attempts)
+    {
+        const unsigned selector =
+            guards_
+                ? static_cast<unsigned>(guards_->nextGameplayRandom() & 7u)
+                : 0u;
+
+        const uint16_t token =
+            sequence.alternativeToken(false, selector);
+
+        if((token >> 8) != 0)
+        {
+            object.animationAlternative =
+                static_cast<uint8_t>(selector);
+            return token;
+        }
+
+        if(!guards_)
+            break;
+    }
+
+    return 0;
+}
+
+bool ObjectRuntime::advanceAnimationForRender(
+    size_t objectIndex,
+    uint32_t nowMs,
+    int32_t playerWorldX,
+    int32_t playerWorldY)
+{
+    if(!img_ || objectIndex >= objects_.size())
+        return false;
+
+    RuntimeObject &object = objects_[objectIndex];
+    if(!object.active || object.guardIndex != 0xff ||
+       object.sequenceObjectId == 0xff)
+        return false;
+
+    const ImgSequenceDef *sequence =
+        img_->objectSequence(object.sequenceObjectId);
+    if(!sequence || sequence->frameCount == 0)
+        return false;
+
+    if(object.animationDeadlineMs > nowMs)
+        return false;
+
+    if(object.objectClass == 0x2C ||
+       object.objectClass == 0x2D)
+    {
+        const unsigned groups =
+            object.objectClass == 0x2D ? 8u : 4u;
+        const unsigned phaseCount =
+            static_cast<unsigned>(sequence->frameCount) / groups;
+
+        if(phaseCount == 0)
+            return false;
+
+        const unsigned localPhase =
+            (static_cast<unsigned>(object.animationFrame) + 1u) %
+            phaseCount;
+
+        unsigned direction =
+            static_cast<unsigned>(
+                directionToPlayer(object,
+                                  playerWorldX,
+                                  playerWorldY));
+
+        if(object.objectClass != 0x2D)
+            direction >>= 1;
+
+        const unsigned frame =
+            direction * phaseCount + localPhase;
+
+        object.animationFrame =
+            static_cast<uint8_t>(
+                frame < sequence->frameCount ? frame : localPhase);
+    }
+    else
+    {
+        unsigned next =
+            static_cast<unsigned>(object.animationFrame) + 1u;
+
+        if(sequence->extended != 0)
+        {
+            uint16_t token =
+                sequence->alternativeToken(
+                    false,
+                    object.animationAlternative);
+
+            const unsigned start = token & 0xffu;
+            const unsigned count = (token >> 8) & 0xffu;
+
+            if(count == 0u ||
+               next < start ||
+               next >= start + count)
+            {
+                token =
+                    chooseAnimationAlternative(object, *sequence);
+
+                if(token != 0)
+                    next = token & 0xffu;
+                else
+                    next = 0;
+            }
+        }
+        else if(next >= sequence->frameCount)
+        {
+            next = 0;
+        }
+
+        object.animationFrame =
+            static_cast<uint8_t>(next);
+    }
+
+    object.animationDeadlineMs =
+        nowMs + static_cast<uint32_t>(sequence->intervalMs);
+    return true;
+}
+
+void ObjectRuntime::updateVerticalAnchorFromFrame(
+    size_t objectIndex,
+    unsigned frameHeight)
+{
+    if(objectIndex >= objects_.size())
+        return;
+
+    RuntimeObject &object = objects_[objectIndex];
+
+    // Flying guards own their bob/elevation state in the GUARD runtime.
+    if(object.guardIndex != 0xff &&
+       (object.objectClass == 0x08 ||
+        object.objectClass == 0x14 ||
+        object.objectClass == 0x1A))
+        return;
+
+    const unsigned clamped =
+        frameHeight < 64u ? frameHeight : 64u;
+
+    if(object.objectClass == 0x2E ||
+       object.objectClass == 0x19)
+    {
+        object.verticalOffset =
+            static_cast<uint8_t>(64u - clamped);
+    }
+    else if(object.objectClass == 0x3B)
+    {
+        object.verticalOffset =
+            static_cast<uint8_t>((64u - clamped) / 2u);
+    }
 }
 
 uint8_t *ObjectRuntime::ammoPoolForWeapon(unsigned weapon)
